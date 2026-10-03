@@ -1,6 +1,9 @@
 import { LIVE_CONFIG } from './config.js';
 import { resolveKreyolAlias } from './kreyolAliases.js';
-import { resolveSpanishAlias } from './spanishAliases.js';
+import {
+  resolveSpanishAlias,
+  splitCountryAbbreviation,
+} from './spanishAliases.js';
 import { foldText } from './text.js';
 
 /**
@@ -31,12 +34,30 @@ export function parseLiveComment(text, config = LIVE_CONFIG) {
     return { ok: false, reason: 'link-or-mention' };
   if (containsBlockedWord(place, config.blockedWords))
     return { ok: false, reason: 'blocked-word' };
-  return {
-    ok: true,
-    command,
-    place,
-    query: resolveKreyolAlias(place) || resolveSpanishAlias(place) || place,
-  };
+  return { ok: true, command, place, query: placeQuery(place) };
+}
+
+const aliasFor = (place) =>
+  resolveKreyolAlias(place) || resolveSpanishAlias(place);
+
+/**
+ * What to search for a place as written. A whole-name alias wins ("Santiago
+ * RD"); then a trailing country abbreviation turns "Santo Domingo RD" into
+ * "Santo Domingo, República Dominicana". The city keeps its own alias only
+ * when that alias is in the same country ("Nueva York USA" still reaches New
+ * York, while "Córdoba MX" leaves the Argentine default for Mexico's).
+ */
+export function placeQuery(place) {
+  const whole = aliasFor(place);
+  if (whole) return whole;
+  const split = splitCountryAbbreviation(place);
+  if (!split) return place;
+  if (!split.city) return split.country;
+  const alias = aliasFor(split.city);
+  const sameCountry =
+    alias &&
+    split.names.some((name) => foldText(alias).includes(foldText(name)));
+  return sameCountry ? alias : `${split.city}, ${split.country}`;
 }
 
 function containsBlockedWord(place, blockedWords) {

@@ -517,3 +517,110 @@ test('live map: Google 3D when available, Esri only after the final check', asyn
   );
   assert.equal(preferredLiveMap(null, { final: true }), null);
 });
+
+test('ciudad + país: abbreviations and same-country aliases', async () => {
+  const { placeQuery } = await import('./commands.js');
+  // Defaults for names found in several countries.
+  assert.equal(placeQuery('Córdoba'), 'Córdoba, Argentina');
+  assert.equal(placeQuery('Santiago'), 'Santiago');
+  assert.equal(
+    placeQuery('Santiago RD'),
+    'Santiago de los Caballeros, República Dominicana',
+  );
+  assert.equal(
+    placeQuery('santiago rd'),
+    'Santiago de los Caballeros, República Dominicana',
+  );
+  assert.equal(placeQuery('Querétaro'), 'Santiago de Querétaro, México');
+  // A country written out is left for the geocoder.
+  assert.equal(placeQuery('Córdoba Argentina'), 'Córdoba Argentina');
+  // Abbreviations, with or without dots and spaces.
+  assert.equal(
+    placeQuery('Santo Domingo RD'),
+    'Santo Domingo, República Dominicana',
+  );
+  assert.equal(placeQuery('Miami USA'), 'Miami, United States');
+  assert.equal(placeQuery('Miami EEUU'), 'Miami, United States');
+  assert.equal(placeQuery('Miami EE.UU.'), 'Miami, United States');
+  assert.equal(placeQuery('Miami EE UU'), 'Miami, United States');
+  assert.equal(placeQuery('Puebla MX'), 'Puebla, México');
+  // The city's alias stays when it is in that same country…
+  assert.equal(placeQuery('Nueva York USA'), 'New York, United States');
+  // …and gives way when the viewer named another one.
+  assert.equal(placeQuery('Córdoba MX'), 'Córdoba, México');
+  assert.equal(placeQuery('RD'), 'República Dominicana');
+  // Words that merely end like an abbreviation are untouched.
+  assert.equal(placeQuery('Sard'), 'Sard');
+  assert.equal(
+    parseLiveComment('!ir Santo Domingo RD').query,
+    'Santo Domingo, República Dominicana',
+  );
+});
+
+test('a city named like its state is reached through a second lookup', async () => {
+  const { cityRetryQuery, preferCityOverState } =
+    await import('./placePolicy.js');
+  const box = (s, w, n, e) => ({
+    southwest: { lat: s, lng: w },
+    northeast: { lat: n, lng: e },
+  });
+  const pueblaState = {
+    name: 'Puebla',
+    label: 'Puebla, México',
+    types: ['administrative_area_level_1'],
+    lat: 18.83,
+    lng: -98.0,
+    viewport: box(17.86, -99.07, 20.84, -96.72),
+  };
+  const pueblaCity = {
+    name: 'Puebla',
+    label: 'Puebla, México',
+    types: ['locality'],
+    lat: 19.04,
+    lng: -98.2,
+  };
+  assert.equal(cityRetryQuery(pueblaState), 'Puebla, Puebla, México');
+  const asked = [];
+  const geocode = async (query) => {
+    asked.push(query);
+    return pueblaCity;
+  };
+  assert.equal(await preferCityOverState(pueblaState, geocode), pueblaCity);
+  assert.deepEqual(asked, ['Puebla, Puebla, México']);
+
+  // Guadalajara (Spain) arrives as a province; the label carries the region.
+  const province = {
+    name: 'Guadalajara',
+    label: 'Guadalajara, Castilla-La Mancha, España',
+    types: ['administrative_area_level_2'],
+    lat: 40.74,
+    lng: -2.51,
+    viewport: box(40.08, -3.54, 41.33, -1.55),
+  };
+  assert.equal(cityRetryQuery(province), 'Guadalajara, Guadalajara, España');
+
+  // Mexico City is a small "state" already framed as a big city: no retry.
+  const cdmx = {
+    ...pueblaState,
+    name: 'Ciudad de México',
+    viewport: box(19.05, -99.36, 19.59, -98.94),
+  };
+  assert.equal(cityRetryQuery(cdmx), null);
+  // Cities, countries and missing places are never retried.
+  assert.equal(cityRetryQuery(pueblaCity), null);
+  assert.equal(cityRetryQuery({ ...pueblaState, types: ['country'] }), null);
+  assert.equal(cityRetryQuery(null), null);
+
+  // The second answer is used only when it is that city, inside the state.
+  const keep = (other) => preferCityOverState(pueblaState, async () => other);
+  assert.equal(await keep(null), pueblaState);
+  assert.equal(await keep({ ...pueblaCity, types: ['route'] }), pueblaState);
+  assert.equal(await keep({ ...pueblaCity, name: 'Tehuacán' }), pueblaState);
+  assert.equal(await keep({ ...pueblaCity, lat: 25, lng: -80 }), pueblaState);
+  assert.equal(
+    await preferCityOverState(pueblaState, async () => {
+      throw new Error('offline');
+    }),
+    pueblaState,
+  );
+});

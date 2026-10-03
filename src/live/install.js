@@ -3,7 +3,7 @@ import { LIVE_CONFIG } from './config.js';
 import { parseLiveComment } from './commands.js';
 import { createCountryLookup } from './countryNames.js';
 import { preferredLiveMap } from './mapPreference.js';
-import { judgeLivePlace } from './placePolicy.js';
+import { judgeLivePlace, preferCityOverState } from './placePolicy.js';
 import { createLiveOverlay } from './overlay.js';
 import { connectLiveRelay } from './relayClient.js';
 import { createLiveRequestQueue } from './requestQueue.js';
@@ -74,13 +74,15 @@ export function installLiveMode({
 
   const countries = createCountryLookup();
   const resolvePlace = async (query, options = {}) => {
-    const outcome = await placeSearch.geocode(query, {
-      signal: AbortSignal.any(
-        [lifetime.signal, options.signal].filter(Boolean),
-      ),
-    });
-    const place = outcome.place;
-    if (!place) return null;
+    const signal = AbortSignal.any(
+      [lifetime.signal, options.signal].filter(Boolean),
+    );
+    const geocode = async (text) =>
+      (await placeSearch.geocode(text, { signal })).place;
+    const first = await geocode(query);
+    if (!first) return null;
+    // "Puebla" answers as the state; ask again for the city of that name.
+    const place = await preferCityOverState(first, geocode, config.camera);
     // The country only labels the overlay; a failed lookup never refuses.
     const country = await countries
       .countryAt(place.lat, place.lng)
