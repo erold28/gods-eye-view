@@ -29,11 +29,13 @@ const COMMANDS = Object.freeze({
   flyNow: ['place'],
   next: [],
   skip: [],
+  extend: [],
   pause: [],
   resume: [],
   togglePause: [],
   remove: ['id'],
   promote: ['id'],
+  clearLine: [],
   clear: [],
 });
 
@@ -82,7 +84,12 @@ export function createLiveRelay({
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
   const currentMap = () => maps.at(-1) || null;
-  const status = () => ({ mapConnected: maps.length > 0 });
+  // `maps` lets the panel warn when more than one map window is open: only
+  // the newest one receives commands.
+  const status = () => ({
+    mapConnected: maps.length > 0,
+    maps: maps.length,
+  });
   const broadcastStatus = () => {
     for (const panel of panels) send(panel, 'status', status());
   };
@@ -192,10 +199,29 @@ export function createLiveRelay({
   };
 }
 
-/** Vite plugin that mounts the relay at /api/live on dev and preview servers. */
+/** Where the control panel page lives; served at /live-control. */
+export const LIVE_CONTROL_PAGE = '/src/live/control/index.html';
+
+/** The page path a request for /live-control should be served from, or null. */
+export function liveControlPagePath(url) {
+  const [path, query] = String(url || '').split(/\?(.*)/s);
+  if (path !== '/live-control' && path !== '/live-control/') return null;
+  return query ? `${LIVE_CONTROL_PAGE}?${query}` : LIVE_CONTROL_PAGE;
+}
+
+/**
+ * Vite plugin that mounts the relay at /api/live and the control panel page
+ * at /live-control. The page is a development-server page: the production
+ * build does not include it.
+ */
 export function liveRelayPlugin(options) {
   const install = (server) => {
     const relay = createLiveRelay(options);
+    server.middlewares.use((req, res, next) => {
+      const page = liveControlPagePath(req.url);
+      if (page) req.url = page;
+      next();
+    });
     server.middlewares.use('/api/live', (req, res, next) => {
       // Connect strips the mount path; the handler expects the full path.
       req.url = `/api/live${req.url === '/' ? '' : req.url}`;

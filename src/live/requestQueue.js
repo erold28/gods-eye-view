@@ -196,6 +196,15 @@ export function createLiveRequestQueue({
       if (current || headReady()) advance('done');
     },
 
+    /** Extender: give the place on screen more time, paused or not. */
+    extend(ms = config.extendSeconds * 1000) {
+      if (!current || !(ms > 0)) return false;
+      if (pausedRemaining !== null) pausedRemaining += ms;
+      else shownAt += ms;
+      emit({ type: 'extended', request: { ...current } });
+      return true;
+    },
+
     /** Saltar: drop the place on screen without letting it finish. */
     skip() {
       if (current) advance('skipped');
@@ -242,6 +251,17 @@ export function createLiveRequestQueue({
     togglePause() {
       if (pausedRemaining === null) this.pause();
       else this.resume();
+    },
+
+    /**
+     * Vaciar fila: drop every waiting request, including those still being
+     * looked up. The place on screen stays and finishes its time.
+     */
+    clearLine() {
+      const count = upcoming.length;
+      upcoming = [];
+      emit({ type: 'line-cleared', count });
+      return count;
     },
 
     /** Empty the line and the screen, and forget per-user waits. */

@@ -6,6 +6,8 @@
 export const LIVE_CONFIG = Object.freeze({
   /** Segundos que se muestra cada ciudad antes de pasar a la siguiente. */
   displaySeconds: 25,
+  /** Segundos que suma el botón "Extender" (tecla E) a la ciudad en pantalla. */
+  extendSeconds: 15,
   /** Segundos que un mismo usuario debe esperar entre dos pedidos aceptados. */
   userCooldownSeconds: 60,
   /** Pedidos máximos esperando en la fila (sin contar el que se muestra). */

@@ -35,9 +35,11 @@ export function runLiveCommand(api, command) {
       return api[command.type](command.id);
     case 'next':
     case 'skip':
+    case 'extend':
     case 'pause':
     case 'resume':
     case 'togglePause':
+    case 'clearLine':
     case 'clear':
       return api[command.type]();
     default:

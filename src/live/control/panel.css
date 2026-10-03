@@ -1,0 +1,305 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0f17;
+  --panel: #141b27;
+  --edge: #263246;
+  --text: #f2f4f8;
+  --muted: #9aa6b8;
+  --accent: #f0a63c;
+  --ok: #3ccf7a;
+  --bad: #ff6b6b;
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+}
+
+.panel {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.panel__status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.panel__connection {
+  font-weight: 700;
+}
+
+.panel__connection[data-online='true']::before {
+  content: '🟢 ';
+}
+
+.panel__connection[data-online='false']::before {
+  content: '🔴 ';
+}
+
+.panel__paused {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #1b1206;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.panel__now,
+.panel__add,
+.panel__section {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+}
+
+.panel__now-label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.panel__now-place {
+  margin-top: 4px;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.panel__now-detail {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.panel__controls {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: #1e293b;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 12px 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.panel__controls button {
+  font-size: 18px;
+  padding: 16px 8px;
+}
+
+kbd {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--edge);
+  background: #0f1622;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.75em;
+  font-weight: 600;
+}
+
+.panel__add {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 10px 12px;
+}
+
+.panel__field {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+input {
+  font: inherit;
+  font-size: 20px;
+  color: var(--text);
+  background: #0f1622;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.panel__add-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.panel__primary {
+  background: var(--accent);
+  color: #1b1206;
+  border-color: var(--accent);
+}
+
+.panel__feedback {
+  grid-column: 1 / -1;
+  min-height: 1.3em;
+  color: var(--muted);
+}
+
+.panel__section h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.panel__section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.panel__danger:hover:not(:disabled) {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.panel__line,
+.panel__rejected {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.panel__line li {
+  display: grid;
+  grid-template-columns: 2.2em 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #0f1622;
+}
+
+.panel__line li[data-status='pending'] {
+  opacity: 0.7;
+}
+
+.panel__pos {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.panel__place {
+  font-weight: 700;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.panel__user {
+  color: var(--muted);
+  margin-left: 8px;
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.panel__state {
+  color: var(--ok);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.panel__line li[data-status='pending'] .panel__state {
+  color: var(--muted);
+}
+
+.panel__line button {
+  padding: 6px 10px;
+  font-size: 14px;
+}
+
+.panel__rejected li {
+  display: grid;
+  grid-template-columns: 3.4em 1fr;
+  gap: 2px 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #0f1622;
+}
+
+.panel__time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.panel__said {
+  overflow-wrap: anywhere;
+}
+
+.panel__reason {
+  grid-column: 2;
+  color: var(--bad);
+}
+
+.panel__empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.panel__help {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .panel__controls {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .panel__add {
+    grid-template-columns: 1fr;
+  }
+  .panel__line li {
+    grid-template-columns: 2em 1fr;
+  }
+}

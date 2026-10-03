@@ -254,11 +254,13 @@ export function installLiveMode({
     flyNow,
     next: () => queue.next(),
     skip: () => queue.skip(),
+    extend: () => queue.extend(),
     remove: (id) => queue.remove(id),
     promote: (id) => queue.promote(id),
     pause: () => queue.pause(),
     resume: () => queue.resume(),
     togglePause: () => queue.togglePause(),
+    clearLine: () => queue.clearLine(),
     clear: () => queue.clear(),
     getState: () => queue.getState(),
   };

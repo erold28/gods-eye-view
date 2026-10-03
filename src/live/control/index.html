@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Panel en vivo · Mr. Erold</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="stylesheet" href="/src/live/control/panel.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <header class="panel__status">
+        <div class="panel__connection" id="connection" data-online="false">
+          Conectando…
+        </div>
+        <div class="panel__paused" id="paused-badge" hidden>⏸ EN PAUSA</div>
+      </header>
+
+      <section class="panel__now" aria-live="polite">
+        <div class="panel__now-label" id="now-label">EN PANTALLA</div>
+        <div class="panel__now-place" id="now-place">—</div>
+        <div class="panel__now-detail" id="now-detail"></div>
+      </section>
+
+      <section class="panel__controls" aria-label="Controles">
+        <button type="button" data-command="next">
+          ⏭ Siguiente <kbd>N</kbd>
+        </button>
+        <button type="button" data-command="skip">
+          ⏩ Saltar <kbd>S</kbd>
+        </button>
+        <button type="button" data-command="togglePause" id="pause-button">
+          ⏸ Pausa <kbd>P</kbd>
+        </button>
+        <button type="button" data-command="extend" id="extend-button">
+          ⏱ Extender <kbd>E</kbd>
+        </button>
+      </section>
+
+      <form class="panel__add" id="add-form" autocomplete="off">
+        <label class="panel__field">
+          <span>Usuario (opcional)</span>
+          <input id="user-input" name="user" placeholder="@juan" />
+        </label>
+        <label class="panel__field panel__field--wide">
+          <span>Ciudad</span>
+          <input id="place-input" name="place" placeholder="París" />
+        </label>
+        <div class="panel__add-actions">
+          <button type="submit" class="panel__primary">
+            ➕ Agregar a la fila <kbd>Enter</kbd>
+          </button>
+          <button type="button" id="fly-button">
+            ✈ Volar ahora (sin cartel) <kbd>Mayús+Enter</kbd>
+          </button>
+        </div>
+        <div class="panel__feedback" id="feedback" role="status"></div>
+      </form>
+
+      <section class="panel__section">
+        <div class="panel__section-head">
+          <h2>Fila <span id="line-count">(0)</span></h2>
+          <button type="button" id="clear-line-button" class="panel__danger">
+            🗑 Vaciar fila
+          </button>
+        </div>
+        <ol class="panel__line" id="line"></ol>
+        <p class="panel__empty" id="line-empty">No hay pedidos en espera.</p>
+      </section>
+
+      <section class="panel__section">
+        <h2>Rechazados</h2>
+        <ol class="panel__rejected" id="rejected"></ol>
+        <p class="panel__empty" id="rejected-empty">Ningún pedido rechazado.</p>
+      </section>
+
+      <footer class="panel__help">
+        Atajos fuera de los campos: <kbd>N</kbd> Siguiente · <kbd>S</kbd> Saltar
+        · <kbd>P</kbd> Pausa/Continuar · <kbd>E</kbd> Extender ·
+        <kbd>Esc</kbd> salir del campo
+      </footer>
+    </main>
+    <script type="module" src="/src/live/control/panel.js"></script>
+  </body>
+</html>

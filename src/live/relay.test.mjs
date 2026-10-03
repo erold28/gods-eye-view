@@ -112,9 +112,12 @@ test('relay passes panel commands and chat comments to the map', async (t) => {
   const { post, listen } = await serveRelay(t);
   assert.equal((await post('/command', { type: 'next' })).status, 409);
   const panel = await listen('panel');
-  assert.deepEqual(await panel.next('status'), { mapConnected: false });
+  assert.deepEqual(await panel.next('status'), {
+    mapConnected: false,
+    maps: 0,
+  });
   const map = await listen('map');
-  assert.deepEqual(await panel.next('status'), { mapConnected: true });
+  assert.deepEqual(await panel.next('status'), { mapConnected: true, maps: 1 });
 
   assert.equal(
     (await post('/command', { type: 'add', user: '', place: 'Lima' })).status,
@@ -147,7 +150,10 @@ test('relay passes panel commands and chat comments to the map', async (t) => {
   assert.deepEqual(await late.next('state'), { current: null, upcoming: [] });
 
   map.close();
-  assert.deepEqual(await panel.next('status'), { mapConnected: false });
+  assert.deepEqual(await panel.next('status'), {
+    mapConnected: false,
+    maps: 0,
+  });
 });
 
 test('relay sends commands only to the newest map window', async (t) => {
