@@ -14,6 +14,8 @@ export const LIVE_CONFIG = Object.freeze({
   queueRowsShown: 3,
   /** Largo máximo del nombre de lugar escrito después del comando. */
   maxPlaceLength: 60,
+  /** Nombre en el cartel para pedidos del panel sin usuario ("Mr. Erold pidió"). */
+  operatorName: 'Mr. Erold',
   /** Comandos aceptados al inicio del comentario: español y kreyòl. */
   commands: Object.freeze(['!ir', '!ale']),
   /**

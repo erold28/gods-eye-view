@@ -29,6 +29,12 @@ export function liveHandle(user) {
   return name.startsWith('(') ? name : `@${name}`;
 }
 
+/** Who asked: "@juan", or the streamer's own name without an "@". */
+const requestHandle = (request) =>
+  request.streamer
+    ? clip(request.user, MAX_USER_CHARS)
+    : liveHandle(request.user);
+
 /**
  * The place exactly as the viewer wrote it, with a capital first letter.
  * Never the geocoder's name or an alias target ("مصر", "Deutschland"): those
@@ -56,17 +62,25 @@ function countryOf(request) {
  */
 export function liveOverlayModel(
   state,
-  { config = LIVE_CONFIG, maxUpcoming = config.queueRowsShown } = {},
+  {
+    config = LIVE_CONFIG,
+    maxUpcoming = config.queueRowsShown,
+    freeFlight = false,
+  } = {},
 ) {
   const displayMs = config.displaySeconds * 1000;
   const current = state?.current || null;
-  const upcoming = state?.upcoming || [];
+  // Requests still being looked up may yet be refused: never on air.
+  const upcoming = (state?.upcoming || []).filter(
+    (request) => request.status !== 'pending',
+  );
   return {
-    mode: current ? 'showing' : 'idle',
+    // A free flight shows neither the banner nor the waiting message.
+    mode: freeFlight ? 'free' : current ? 'showing' : 'idle',
     paused: Boolean(state?.paused),
     current: current
       ? {
-          handle: liveHandle(current.user),
+          handle: requestHandle(current),
           place: spokenPlace(current),
           country: countryOf(current),
           progress:
@@ -77,7 +91,7 @@ export function liveOverlayModel(
       : null,
     upcoming: upcoming.slice(0, maxUpcoming).map((request, index) => ({
       position: index + 1,
-      handle: liveHandle(request.user),
+      handle: requestHandle(request),
       place: spokenPlace(request),
       country: countryOf(request),
     })),
@@ -149,12 +163,12 @@ export function createLiveOverlay({
 
   return {
     element: root,
-    render(state) {
-      const model = liveOverlayModel(state, { config });
+    render(state, { freeFlight = false } = {}) {
+      const model = liveOverlayModel(state, { config, freeFlight });
       root.dataset.mode = model.mode;
       root.classList.toggle('is-paused', model.paused);
-      banner.hidden = !model.current;
-      idle.hidden = Boolean(model.current);
+      banner.hidden = model.mode !== 'showing';
+      idle.hidden = model.mode !== 'idle';
       if (model.current) {
         handle.textContent = model.current.handle;
         placeName.textContent = model.current.place;

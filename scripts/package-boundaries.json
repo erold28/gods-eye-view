@@ -1389,6 +1389,7 @@
       "src/live/overlay.css",
       "src/live/overlay.js",
       "src/live/placePolicy.js",
+      "src/live/relayClient.js",
       "src/live/requestQueue.js",
       "src/live/spanishAliases.js",
       "src/live/text.js",

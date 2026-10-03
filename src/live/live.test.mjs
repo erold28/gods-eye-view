@@ -359,3 +359,87 @@ test('flight range follows the place box, capped by its kind', async () => {
     3_000,
   );
 });
+
+/** A queue whose lookups finish only when the test says so. */
+function deferredQueue() {
+  const lookups = new Map();
+  const events = [];
+  const queue = createLiveRequestQueue({
+    now: () => 0,
+    resolvePlace: (query) =>
+      new Promise((resolve) => lookups.set(query, resolve)),
+  });
+  queue.subscribe(({ event }) => events.push(event));
+  const finish = async (query, place = city(query)) => {
+    lookups.get(query)(place);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+  const line = () =>
+    queue.getState().upcoming.map((r) => `${r.place}:${r.status}`);
+  const shows = () =>
+    events.filter((e) => e.type === 'show').map((e) => e.request.place);
+  return { queue, finish, line, shows };
+}
+
+test('queue: requests keep the order they arrived in, not lookup order', async () => {
+  const q = deferredQueue();
+  const paris = q.queue.submit({ user: 'a', text: '!ir Paris' });
+  const lima = q.queue.submit({ user: 'b', text: '!ir Lima' });
+  const quito = q.queue.submit({ user: 'c', text: '!ir Quito' });
+  assert.deepEqual(q.line(), [
+    'Paris:pending',
+    'Lima:pending',
+    'Quito:pending',
+  ]);
+  await q.finish('Quito');
+  await q.finish('Lima');
+  // Lima and Quito are ready, but Paris arrived first: nothing shows yet.
+  assert.deepEqual(q.shows(), []);
+  assert.deepEqual(q.line(), ['Paris:pending', 'Lima:ready', 'Quito:ready']);
+  await q.finish('Paris');
+  await Promise.all([paris, lima, quito]);
+  assert.deepEqual(q.shows(), ['Paris']);
+  assert.deepEqual(q.line(), ['Lima:ready', 'Quito:ready']);
+});
+
+test('queue: a refused request leaves its reserved place and frees the line', async () => {
+  const q = deferredQueue();
+  const casa = q.queue.submit({ user: 'a', text: '!ir Casa' });
+  const lima = q.queue.submit({ user: 'b', text: '!ir Lima' });
+  await q.finish('Lima');
+  assert.deepEqual(q.shows(), []);
+  await q.finish('Casa', city('Casa', { types: ['street_address'] }));
+  assert.equal((await casa).reason, 'private-place');
+  assert.equal((await lima).ok, true);
+  assert.deepEqual(q.shows(), ['Lima']);
+  assert.deepEqual(q.line(), []);
+});
+
+test('queue: Borrar works on a request still being looked up', async () => {
+  const q = deferredQueue();
+  const roma = q.queue.submit({ user: 'a', text: '!ir Roma' });
+  const lima = q.queue.submit({ user: 'b', text: '!ir Lima' });
+  await q.finish('Lima');
+  const pending = q.queue.getState().upcoming[0];
+  assert.equal(pending.status, 'pending');
+  q.queue.remove(pending.id);
+  assert.deepEqual(q.shows(), ['Lima'], 'the ready request behind it starts');
+  await q.finish('Roma');
+  assert.equal((await roma).reason, 'removed');
+  assert.equal((await lima).ok, true);
+});
+
+test('overlay: requests still being looked up are never on air', async () => {
+  const { liveOverlayModel } = await import('./overlay.js');
+  const model = liveOverlayModel({
+    current: null,
+    upcoming: [
+      { id: 1, user: 'a', place: 'Roma', status: 'pending' },
+      { id: 2, user: 'b', place: 'Lima', status: 'ready', types: ['locality'] },
+    ],
+  });
+  assert.deepEqual(
+    model.upcoming.map((r) => r.place),
+    ['Lima'],
+  );
+});

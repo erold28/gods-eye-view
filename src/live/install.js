@@ -1,9 +1,12 @@
 import * as Cesium from 'cesium';
 import { OrbitController } from '../orbit.js';
 import { LIVE_CONFIG } from './config.js';
+import { parseLiveComment } from './commands.js';
 import { createCountryLookup } from './countryNames.js';
+import { judgeLivePlace } from './placePolicy.js';
 import { liveFlightRangeM } from './framing.js';
 import { createLiveOverlay } from './overlay.js';
+import { connectLiveRelay } from './relayClient.js';
 import { createLiveRequestQueue } from './requestQueue.js';
 import './overlay.css';
 
@@ -16,6 +19,8 @@ const IDLE_DELAY_MS = 4000;
 const STARTUP_IDLE_DELAY_MS = 9000;
 /** The app restores its visual state while starting, so the clean view is re-applied. */
 const CLEAN_VIEW_DELAYS_MS = Object.freeze([0, 2000, 8000]);
+/** Refused requests the control panel lists. */
+const REJECTED_KEPT = 20;
 
 /** Whether this page was opened for streaming with `?live=1`. */
 export function isLiveMode(location = globalThis.location) {
@@ -44,8 +49,9 @@ function screenCenterTarget(viewer) {
  * `run(name, args)` runs an app action (the same ones voice uses), so flights
  * and the HUD go through the app's own camera and display rules.
  *
- * Until the comment route lands, requests can be sent from the browser
- * console: `__gevLive.submit({ user: 'ana', text: '!ir París' })`.
+ * Requests arrive from the control panel or a chat bridge through the
+ * /api/live relay (server/live/relay.js), or from the browser console:
+ * `__gevLive.submit({ user: 'ana', text: '!ir París' })`.
  * @returns {() => void} cleanup
  */
 export function installLiveMode({
@@ -70,26 +76,33 @@ export function installLiveMode({
   };
 
   const countries = createCountryLookup();
-  const queue = createLiveRequestQueue({
-    config,
-    async resolvePlace(query, options = {}) {
-      const outcome = await placeSearch.geocode(query, {
-        signal: AbortSignal.any(
-          [lifetime.signal, options.signal].filter(Boolean),
-        ),
-      });
-      const place = outcome.place;
-      if (!place) return null;
-      // The country only labels the overlay; a failed lookup never refuses.
-      const country = await countries
-        .countryAt(place.lat, place.lng)
-        .catch(() => null);
-      return { ...place, country: country?.name || null };
-    },
-  });
+  const resolvePlace = async (query, options = {}) => {
+    const outcome = await placeSearch.geocode(query, {
+      signal: AbortSignal.any(
+        [lifetime.signal, options.signal].filter(Boolean),
+      ),
+    });
+    const place = outcome.place;
+    if (!place) return null;
+    // The country only labels the overlay; a failed lookup never refuses.
+    const country = await countries
+      .countryAt(place.lat, place.lng)
+      .catch(() => null);
+    return { ...place, country: country?.name || null };
+  };
+  const queue = createLiveRequestQueue({ config, resolvePlace });
   const overlay = createLiveOverlay({ document, config });
   const orbit = new OrbitController(viewer);
   let idleTimer = null;
+  /** Connected once the API exists, below; queue events publish through it. */
+  let relay = null;
+  /**
+   * "Volar ahora (sin cartel)": the place the streamer flew to directly,
+   * outside the line. The line stays paused, with no banner, until resumed.
+   */
+  let freeFlight = null;
+  const render = (state = queue.getState()) =>
+    overlay.render(state, { freeFlight: Boolean(freeFlight) });
 
   const stopOrbit = () => {
     if (idleTimer !== null) clearTimeout(idleTimer);
@@ -131,15 +144,24 @@ export function installLiveMode({
   };
 
   const unsubscribe = queue.subscribe(({ state, event }) => {
+    // Any step of the line ends a free flight; resuming flies back to the
+    // request that was on screen, since the camera was elsewhere.
+    const leftFreeFlight =
+      freeFlight !== null &&
+      ['show', 'resumed', 'idle', 'cleared'].includes(event.type);
+    if (leftFreeFlight) freeFlight = null;
     if (event.type === 'show') fly(event.request);
     else if (event.type === 'paused') stopOrbit();
+    else if (leftFreeFlight && event.type === 'resumed' && state.current)
+      fly(state.current);
     else if (
       !state.current &&
       !state.paused &&
       ['idle', 'cleared', 'resumed'].includes(event.type)
     )
       startIdleOrbit();
-    overlay.render(state);
+    render(state);
+    relay?.publish();
   });
 
   const cleanView = () => {
@@ -156,16 +178,84 @@ export function installLiveMode({
 
   const tick = setInterval(() => {
     queue.update();
-    overlay.render(queue.getState());
+    render();
   }, TICK_MS);
-  overlay.render(queue.getState());
+  render();
   startIdleOrbit(STARTUP_IDLE_DELAY_MS);
 
+  // Refused requests, newest first, so the control panel can say why.
+  // Ordinary chat without a command is not a refusal and is not kept.
+  const rejected = [];
+  const reject = (entry, result) => {
+    rejected.unshift({
+      at: Date.now(),
+      user: String(entry.user ?? ''),
+      text: String(entry.text ?? ''),
+      source: entry.source,
+      reason: result.reason,
+      ...(result.waitMs ? { waitMs: result.waitMs } : {}),
+    });
+    rejected.length = Math.min(rejected.length, REJECTED_KEPT);
+    relay?.publish();
+  };
+
+  const submit = async (
+    { user, text },
+    { operator = false, source = 'console' } = {},
+  ) => {
+    const result = await queue.submit(
+      { user, text },
+      { signal: lifetime.signal, operator },
+    );
+    // Chat without a command, and requests the streamer removed while they
+    // were being looked up, are not refusals.
+    if (!result.ok && !['not-command', 'removed'].includes(result.reason))
+      reject({ user, text, source }, result);
+    return result;
+  };
+
+  /**
+   * Volar ahora (sin cartel): fly straight to a place without a banner and
+   * without joining the line. The line pauses and waits for Continuar (P).
+   * The same rules as any request apply: aliases, no numbers or links, and
+   * public places only.
+   */
+  const flyNow = async (place) => {
+    const text = `!ir ${String(place ?? '').trim()}`;
+    const entry = { user: '', text, source: 'panel-fly' };
+    const parsed = parseLiveComment(text, config);
+    if (!parsed.ok) {
+      reject(entry, parsed);
+      return parsed;
+    }
+    const resolved = await resolvePlace(parsed.query);
+    const verdict = judgeLivePlace(resolved);
+    if (!verdict.ok) {
+      reject(entry, verdict);
+      return verdict;
+    }
+    queue.pause();
+    freeFlight = {
+      place: parsed.place,
+      country: resolved.country || null,
+      lat: resolved.lat,
+      lng: resolved.lng,
+      types: [...(resolved.types || [])],
+      viewport: resolved.viewport || null,
+    };
+    fly(freeFlight);
+    render();
+    relay?.publish();
+    return { ok: true, place: { ...freeFlight } };
+  };
+
   const api = {
-    submit: (comment) => queue.submit(comment, { signal: lifetime.signal }),
+    submit,
+    flyNow,
     next: () => queue.next(),
     skip: () => queue.skip(),
     remove: (id) => queue.remove(id),
+    promote: (id) => queue.promote(id),
     pause: () => queue.pause(),
     resume: () => queue.resume(),
     togglePause: () => queue.togglePause(),
@@ -173,6 +263,19 @@ export function installLiveMode({
     getState: () => queue.getState(),
   };
   window.__gevLive = api;
+
+  relay = connectLiveRelay({
+    api,
+    getState: () => ({
+      at: Date.now(),
+      displayMs: config.displaySeconds * 1000,
+      ...queue.getState(),
+      freeFlight: freeFlight
+        ? { place: freeFlight.place, country: freeFlight.country }
+        : null,
+      rejected: rejected.map((entry) => ({ ...entry })),
+    }),
+  });
 
   let disposed = false;
   const cleanup = () => {
@@ -185,6 +288,7 @@ export function installLiveMode({
     timers.clear();
     stopOrbit();
     unsubscribe();
+    relay.close();
     overlay.destroy();
     if (window.__gevLive === api) delete window.__gevLive;
   };

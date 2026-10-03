@@ -21,6 +21,7 @@ import { trackBackfillProxies } from './aircraft/tracks.js';
 import { openAiRealtimeProxy } from './openai.js';
 import { googlePlacesContextProxy } from './places.js';
 import { keySetupEndpoint } from '../standalone/key-setup.js';
+import { liveRelayPlugin } from '../live/relay.js';
 import { weatherProxy } from './weather.js';
 import { firePerimetersProxy } from './firePerimeters.js';
 import { cycloneProxy } from './cyclones.js';
@@ -58,6 +59,8 @@ function localProviderPlugins({ realtime } = {}) {
     weatherProxy(),
     cycloneProxy(),
     firePerimetersProxy(),
+    // Live stream requests (Mr. Erold): the /api/live relay.
+    liveRelayPlugin(),
     keySetupEndpoint(),
   ];
 }

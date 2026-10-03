@@ -12,6 +12,11 @@ import { foldText } from './text.js';
  *
  * Listeners receive `{ state, event }`. `event.type === 'show'` carries the
  * request the camera should now fly to.
+ *
+ * A request keeps the place in line it had when it ARRIVED, not when its
+ * lookup finished: it is reserved at once with `status: 'pending'`, filled in
+ * as `'ready'` when the place is accepted, and taken out if it is refused. The
+ * line never shows past a pending request at its head; it waits for it.
  */
 export function createLiveRequestQueue({
   resolvePlace,
@@ -54,18 +59,38 @@ export function createLiveRequestQueue({
     emit({ type: 'show', request: { ...request } });
   };
 
+  /** Whether the head of the line is ready to go on screen. */
+  const headReady = () => upcoming[0]?.status === 'ready';
+
   const advance = (outcome) => {
     const finished = current;
     current = null;
     if (finished) emit({ type: outcome, request: { ...finished } });
-    const next = upcoming.shift();
-    if (next) show(next);
+    if (headReady()) show(upcoming.shift());
+    else if (upcoming.length) emit({ type: 'waiting' });
     else emit({ type: 'idle' });
   };
 
-  const isDuplicate = (key) =>
+  const isDuplicate = (key, exceptId = null) =>
     (current && placeKey(current) === key) ||
-    upcoming.some((request) => placeKey(request) === key);
+    upcoming.some(
+      (request) => request.id !== exceptId && placeKey(request) === key,
+    );
+
+  /** Start the head of the line when the screen is free and it is ready. */
+  const startIfFree = () => {
+    if (!current && pausedRemaining === null && headReady()) advance(null);
+  };
+
+  /** Take a reserved request out of the line, if it is still there. */
+  const drop = (id, reason) => {
+    const index = upcoming.findIndex((request) => request.id === id);
+    if (index < 0) return;
+    const [dropped] = upcoming.splice(index, 1);
+    emit({ type: 'dropped', reason, request: { ...dropped } });
+    // A refused head no longer holds back the requests behind it.
+    startIfFree();
+  };
 
   return {
     getState: snapshot,
@@ -77,53 +102,82 @@ export function createLiveRequestQueue({
 
     /**
      * Read one comment and queue it when it passes every rule. Resolves to
-     * `{ ok: true, request }` or `{ ok: false, reason }`.
+     * `{ ok: true, request }` or `{ ok: false, reason }`; a cooldown refusal
+     * also carries `waitMs`.
+     *
+     * `operator: true` marks a request typed in the control panel: it skips
+     * the per-user wait (the streamer may transcribe several viewers in a row)
+     * and does not start one, but every other rule still applies.
      */
-    async submit({ user, text }, { signal } = {}) {
+    async submit({ user, text }, { signal, operator = false } = {}) {
       const parsed = parseLiveComment(text, config);
       if (!parsed.ok) return parsed;
       const userKey = foldText(user) || '(anónimo)';
-      const last = lastAccepted.get(userKey);
-      if (last !== undefined && now() - last < cooldownMs)
-        return { ok: false, reason: 'user-cooldown' };
-      if (resolving.has(userKey)) return { ok: false, reason: 'user-cooldown' };
+      if (!operator) {
+        const last = lastAccepted.get(userKey);
+        if (last !== undefined && now() - last < cooldownMs)
+          return {
+            ok: false,
+            reason: 'user-cooldown',
+            waitMs: last + cooldownMs - now(),
+          };
+        if (resolving.has(userKey))
+          return { ok: false, reason: 'user-cooldown', waitMs: cooldownMs };
+      }
       if (upcoming.length >= config.maxQueue)
         return { ok: false, reason: 'queue-full' };
       if (isDuplicate(foldText(parsed.query)))
         return { ok: false, reason: 'duplicate' };
 
-      resolving.add(userKey);
-      let place;
-      try {
-        place = await resolvePlace(parsed.query, { signal });
-      } finally {
-        resolving.delete(userKey);
-      }
-      const verdict = judgeLivePlace(place);
-      if (!verdict.ok) return verdict;
-
+      // Reserve the place in line now, in arrival order.
+      const typedUser = String(user ?? '').trim();
       const request = {
         id: nextId++,
-        user: String(user ?? '').trim() || '(anónimo)',
+        status: 'pending',
+        user: typedUser || (operator ? config.operatorName : '(anónimo)'),
+        // The streamer's own request: shown by name, without an "@".
+        streamer: operator && !typedUser,
         command: parsed.command,
         place: parsed.place,
         query: parsed.query,
+      };
+      upcoming.push(request);
+      emit({ type: 'reserved', request: { ...request } });
+
+      if (!operator) resolving.add(userKey);
+      let place;
+      try {
+        place = await resolvePlace(parsed.query, { signal });
+      } catch (error) {
+        drop(request.id, 'failed');
+        throw error;
+      } finally {
+        if (!operator) resolving.delete(userKey);
+      }
+      // Borrar or a clear while the lookup ran: the reservation is gone.
+      if (!upcoming.includes(request)) return { ok: false, reason: 'removed' };
+      const verdict = judgeLivePlace(place);
+      if (!verdict.ok) {
+        drop(request.id, verdict.reason);
+        return verdict;
+      }
+      Object.assign(request, {
+        status: 'ready',
         label: place.label || place.name || parsed.query,
         lat: place.lat,
         lng: place.lng,
         types: [...(place.types || [])],
         viewport: place.viewport || null,
         country: place.country || null,
-      };
-      // Checked again: the lookup was asynchronous and the line may have moved.
-      if (upcoming.length >= config.maxQueue)
-        return { ok: false, reason: 'queue-full' };
-      if (isDuplicate(placeKey(request)))
+      });
+      // Another spelling of a place already in line ("Paris" and "París").
+      if (isDuplicate(placeKey(request), request.id)) {
+        drop(request.id, 'duplicate');
         return { ok: false, reason: 'duplicate' };
-      lastAccepted.set(userKey, now());
-      upcoming.push(request);
+      }
+      if (!operator) lastAccepted.set(userKey, now());
       emit({ type: 'queued', request: { ...request } });
-      if (!current && pausedRemaining === null) advance(null);
+      startIfFree();
       return { ok: true, request: { ...request } };
     },
 
@@ -131,7 +185,7 @@ export function createLiveRequestQueue({
     update() {
       if (pausedRemaining !== null) return;
       if (!current) {
-        if (upcoming.length) advance(null);
+        if (headReady()) advance(null);
         return;
       }
       if (now() - shownAt >= displayMs) advance('done');
@@ -139,7 +193,7 @@ export function createLiveRequestQueue({
 
     /** Siguiente: finish the place on screen now and show the next one. */
     next() {
-      if (current || upcoming.length) advance('done');
+      if (current || headReady()) advance('done');
     },
 
     /** Saltar: drop the place on screen without letting it finish. */
@@ -153,6 +207,18 @@ export function createLiveRequestQueue({
       if (index < 0) return false;
       const [removed] = upcoming.splice(index, 1);
       emit({ type: 'removed', request: { ...removed } });
+      startIfFree();
+      return true;
+    },
+
+    /** Subir al primer lugar: move a waiting request to the front of the line. */
+    promote(id) {
+      const index = upcoming.findIndex((request) => request.id === id);
+      if (index < 0) return false;
+      const [promoted] = upcoming.splice(index, 1);
+      upcoming.unshift(promoted);
+      emit({ type: 'promoted', request: { ...promoted } });
+      startIfFree();
       return true;
     },
 
@@ -170,7 +236,7 @@ export function createLiveRequestQueue({
       shownAt = now() - (displayMs - pausedRemaining);
       pausedRemaining = null;
       emit({ type: 'resumed' });
-      if (!current && upcoming.length) advance(null);
+      if (!current && headReady()) advance(null);
     },
 
     togglePause() {
