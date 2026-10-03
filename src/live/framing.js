@@ -1,34 +1,51 @@
+import { LIVE_CONFIG } from './config.js';
+
 /**
- * Camera distance for a live request, from the place the policy accepted.
+ * How the camera frames a live request: distance to the place's centre and
+ * tilt, by kind of place. The numbers live in config.js (`camera`).
  *
  * The flight goes to the accepted coordinates rather than searching the name
- * again: a second lookup can land somewhere else. The distance follows the
- * place's own box when the geocoder gave one, capped by its kind, so an
- * administrative area that owns far-off islands (Tokyo) still frames the city.
+ * again: a second lookup can land somewhere else.
+ *
+ * The keyless geocoder is a poor judge of size: it calls cities and villages
+ * alike "locality", reports many cities (Lima, Cap-Haïtien) as a "district"
+ * (sublocality) without a box, gives towns the box of their whole municipality
+ * (Cancún, 38 km), and Mexico City as a state. So every settlement is framed as
+ * a city unless its box is clearly larger (a big city) or clearly smaller (a
+ * town), and a state or district smaller than a city region is a big city.
  */
-const MIN_RANGE_M = 3_000;
-
-const MAX_RANGE_BY_TYPE = Object.freeze([
-  [['country'], 3_000_000],
-  [['administrative_area_level_1'], 1_200_000],
-  [['administrative_area_level_2', 'administrative_area_level_3'], 300_000],
-  [['locality', 'postal_town', 'city', 'town', 'municipality'], 60_000],
-  [['village'], 15_000],
+const KINDS = Object.freeze([
+  ['country', ['country']],
+  ['region', ['administrative_area_level_1']],
+  ['district', ['administrative_area_level_2', 'administrative_area_level_3']],
   [
-    ['sublocality', 'sublocality_level_1', 'neighborhood', 'colloquial_area'],
-    10_000,
+    'locality',
+    [
+      'locality',
+      'postal_town',
+      'city',
+      'town',
+      'municipality',
+      'village',
+      'sublocality',
+      'sublocality_level_1',
+    ],
+  ],
+  ['neighborhood', ['neighborhood', 'colloquial_area']],
+  [
+    'area',
+    [
+      'park',
+      'natural_feature',
+      'airport',
+      'stadium',
+      'amusement_park',
+      'zoo',
+      'university',
+      'campus',
+    ],
   ],
 ]);
-const DEFAULT_MAX_RANGE_M = 30_000;
-
-/** Range used when a place carries no box: half of its kind's cap. */
-const range = (maxRange) => Math.max(MIN_RANGE_M, maxRange / 2);
-
-function maxRangeFor(types) {
-  for (const [kinds, maxRange] of MAX_RANGE_BY_TYPE)
-    if (kinds.some((kind) => types.includes(kind))) return maxRange;
-  return DEFAULT_MAX_RANGE_M;
-}
 
 /** Great-circle distance in metres between two { lat, lng } points. */
 function distanceM(a, b) {
@@ -41,14 +58,62 @@ function distanceM(a, b) {
   return 2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** Camera range in metres for an accepted place `{ types, viewport }`. */
-export function liveFlightRangeM(place) {
-  const types = Array.isArray(place?.types) ? place.types : [];
-  const maxRange = maxRangeFor(types);
+/** The diagonal of the place's box in metres, or null without a box. */
+function boxDiagonalM(place) {
   const sw = place?.viewport?.southwest;
   const ne = place?.viewport?.northeast;
-  const boxed = [sw?.lat, sw?.lng, ne?.lat, ne?.lng].every(Number.isFinite);
-  if (!boxed) return range(maxRange);
-  const diagonal = distanceM(sw, ne);
-  return Math.round(Math.min(maxRange, Math.max(MIN_RANGE_M, diagonal * 1.2)));
+  if (![sw?.lat, sw?.lng, ne?.lat, ne?.lng].every(Number.isFinite)) return null;
+  return distanceM(sw, ne);
+}
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+/** Which row of the camera table a place uses. */
+export function liveFramingKind(place, camera = LIVE_CONFIG.camera) {
+  const types = Array.isArray(place?.types) ? place.types : [];
+  const kind =
+    KINDS.find(([, kinds]) =>
+      kinds.some((type) => types.includes(type)),
+    )?.[0] || 'other';
+  const diagonal = boxDiagonalM(place);
+  if (
+    (kind === 'region' || kind === 'district') &&
+    diagonal !== null &&
+    diagonal < camera[kind].bigCityBelowKm * 1000
+  )
+    return 'bigCity';
+  if (kind !== 'locality') return kind;
+  if (diagonal === null) return types.includes('village') ? 'town' : 'city';
+  if (diagonal >= camera.bigCity.fromKm * 1000) return 'bigCity';
+  if (diagonal >= camera.city.fromKm * 1000) return 'city';
+  return 'town';
+}
+
+/**
+ * `{ kind, rangeM, pitchDeg }` for an accepted place. Rows with a fixed
+ * `meters` always use it; rows with `minMeters`/`maxMeters` follow the
+ * place's own box within those limits (the lower limit without a box).
+ */
+export function liveFramingPlan(place, camera = LIVE_CONFIG.camera) {
+  const kind = liveFramingKind(place, camera);
+  const row = camera[kind];
+  let rangeM = row.meters;
+  if (!Number.isFinite(rangeM)) {
+    const diagonal = boxDiagonalM(place);
+    rangeM =
+      diagonal === null
+        ? row.minMeters
+        : clamp(diagonal * 1.3, row.minMeters, row.maxMeters);
+  }
+  return { kind, rangeM: Math.round(rangeM), pitchDeg: row.pitch };
+}
+
+/**
+ * How far to tilt the view up, in radians, so the point the camera looks at
+ * sits at `screenY` (0 top, 1 bottom) instead of the centre. `fovy` is the
+ * camera's vertical field of view in radians.
+ */
+export function screenOffsetRadians(fovy, screenY) {
+  const below = Math.min(0.9, Math.max(0, (screenY - 0.5) / 0.5));
+  return Math.atan(below * Math.tan(fovy / 2));
 }

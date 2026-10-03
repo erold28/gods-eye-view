@@ -1,18 +1,14 @@
-import * as Cesium from 'cesium';
-import { OrbitController } from '../orbit.js';
+import { createLiveCamera } from './camera.js';
 import { LIVE_CONFIG } from './config.js';
 import { parseLiveComment } from './commands.js';
 import { createCountryLookup } from './countryNames.js';
 import { judgeLivePlace } from './placePolicy.js';
-import { liveFlightRangeM } from './framing.js';
 import { createLiveOverlay } from './overlay.js';
 import { connectLiveRelay } from './relayClient.js';
 import { createLiveRequestQueue } from './requestQueue.js';
 import './overlay.css';
 
 const TICK_MS = 250;
-/** Waiting-mode spin, degrees per second: one turn every three minutes. */
-const IDLE_ORBIT_DEG_PER_S = 2;
 /** Pause after the line empties before the waiting spin starts. */
 const IDLE_DELAY_MS = 4000;
 /** The startup camera intro finishes before the first waiting spin. */
@@ -27,27 +23,13 @@ export function isLiveMode(location = globalThis.location) {
   return new URLSearchParams(location?.search || '').get('live') === '1';
 }
 
-/** The ground point at the centre of the screen, or null over empty space. */
-function screenCenterTarget(viewer) {
-  const { scene, camera } = viewer;
-  const center = new Cesium.Cartesian2(
-    scene.canvas.clientWidth / 2,
-    scene.canvas.clientHeight / 2,
-  );
-  const ray = camera.getPickRay(center);
-  return (
-    (ray && scene.globe?.show && scene.globe.pick(ray, scene)) ||
-    camera.pickEllipsoid(center) ||
-    null
-  );
-}
-
 /**
  * Live mode for streaming: requests from comments fly the camera, with the
  * request overlay on top. Does nothing unless the page has `?live=1`.
  *
- * `run(name, args)` runs an app action (the same ones voice uses), so flights
- * and the HUD go through the app's own camera and display rules.
+ * `run(name, args)` runs an app action (the same ones voice uses); the HUD
+ * goes through it. Flights use the app's own landmark flight (camera.js), with
+ * `ground` the app's ground-floor service so the eye never lands underground.
  *
  * Requests arrive from the control panel or a chat bridge through the
  * /api/live relay (server/live/relay.js), or from the browser console:
@@ -58,6 +40,7 @@ export function installLiveMode({
   viewer,
   placeSearch,
   run,
+  ground = null,
   signal,
   document = globalThis.document,
   location = globalThis.location,
@@ -92,7 +75,7 @@ export function installLiveMode({
   };
   const queue = createLiveRequestQueue({ config, resolvePlace });
   const overlay = createLiveOverlay({ document, config });
-  const orbit = new OrbitController(viewer);
+  const camera = createLiveCamera({ viewer, ground, config });
   let idleTimer = null;
   /** Connected once the API exists, below; queue events publish through it. */
   let relay = null;
@@ -108,7 +91,7 @@ export function installLiveMode({
     if (idleTimer !== null) clearTimeout(idleTimer);
     timers.delete(idleTimer);
     idleTimer = null;
-    if (orbit.active) orbit.stop();
+    camera.stopIdle();
   };
 
   const startIdleOrbit = (delay = IDLE_DELAY_MS) => {
@@ -117,30 +100,17 @@ export function installLiveMode({
       idleTimer = null;
       const state = queue.getState();
       if (state.current || state.paused || viewer.isDestroyed?.()) return;
-      const target = screenCenterTarget(viewer);
-      if (!target) return;
-      const radius = Cesium.Cartesian3.distance(
-        viewer.camera.positionWC,
-        target,
-      );
-      const pitch = Cesium.Math.clamp(
-        Cesium.Math.toDegrees(viewer.camera.pitch),
-        -89,
-        -15,
-      );
-      orbit.start(target, { radius, pitch, speed: IDLE_ORBIT_DEG_PER_S });
+      camera.startIdle();
     }, delay);
   };
 
   const fly = (request) => {
     stopOrbit();
-    Promise.resolve(
-      run('fly_to_location', {
-        latitude: request.lat,
-        longitude: request.lng,
-        rangeM: liveFlightRangeM(request),
-      }),
-    ).catch((error) => console.warn('[Live] Flight failed:', error));
+    try {
+      camera.flyTo(request);
+    } catch (error) {
+      console.warn('[Live] Flight failed:', error);
+    }
   };
 
   const unsubscribe = queue.subscribe(({ state, event }) => {
@@ -289,6 +259,7 @@ export function installLiveMode({
     for (const id of timers) clearTimeout(id);
     timers.clear();
     stopOrbit();
+    camera.destroy();
     unsubscribe();
     relay.close();
     overlay.destroy();

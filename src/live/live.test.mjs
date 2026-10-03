@@ -328,38 +328,77 @@ test('spanish aliases send exonyms to the right place', async () => {
   );
 });
 
-test('flight range follows the place box, capped by its kind', async () => {
-  const { liveFlightRangeM } = await import('./framing.js');
+test('camera framing: distance and tilt follow the table in config.js', async () => {
+  const { liveFramingPlan, screenOffsetRadians } = await import('./framing.js');
   const box = (s, w, n, e) => ({
     southwest: { lat: s, lng: w },
     northeast: { lat: n, lng: e },
   });
-  // A city box ~20 km across frames at ~1.2x its diagonal.
-  const city = liveFlightRangeM({
-    types: ['locality'],
-    viewport: box(48.8, 2.25, 48.9, 2.42),
-  });
-  assert.ok(city > 15_000 && city < 30_000, String(city));
-  // Tokyo's administrative box reaches far islands; the city cap holds.
+  const plan = (place) => {
+    const { kind, rangeM, pitchDeg } = liveFramingPlan(place);
+    return `${kind} ${rangeM} ${pitchDeg}`;
+  };
+  // Localities are sized by their own box: Cancún ~20 km is a city.
   assert.equal(
-    liveFlightRangeM({ types: ['locality'], viewport: box(20, 136, 36, 154) }),
-    60_000,
+    plan({ types: ['locality'], viewport: box(21.06, -86.92, 21.2, -86.8) }),
+    'city 8000 -28',
+  );
+  // Tokyo's administrative box reaches far islands: still 14 km away.
+  assert.equal(
+    plan({ types: ['locality'], viewport: box(20, 136, 36, 154) }),
+    'bigCity 14000 -28',
   );
   assert.equal(
-    liveFlightRangeM({ types: ['country'], viewport: box(-60, -120, 70, 160) }),
-    3_000_000,
+    plan({ types: ['locality'], viewport: box(18.23, -72.55, 18.25, -72.52) }),
+    'town 4000 -30',
   );
-  // No box: half of the kind's cap, never below the minimum.
-  assert.equal(liveFlightRangeM({ types: ['village'] }), 7_500);
+  assert.equal(plan({ types: ['locality'] }), 'city 8000 -28');
+  assert.equal(plan({ types: ['village'] }), 'town 4000 -30');
+  // Cities the geocoder reports as districts without a box (Lima, Okap).
+  assert.equal(plan({ types: ['sublocality'] }), 'city 8000 -28');
+  assert.equal(plan({ types: ['neighborhood'] }), 'neighborhood 2500 -30');
+  // A municipality-sized box (Cancún, 38 km) is still a city; London is big.
   assert.equal(
-    liveFlightRangeM({
-      types: ['sublocality'],
-      viewport: box(1, 1, 1.001, 1.001),
+    plan({ types: ['locality'], viewport: box(21.0, -87.0, 21.25, -86.75) }),
+    'city 8000 -28',
+  );
+  assert.equal(
+    plan({ types: ['locality'], viewport: box(51.28, -0.51, 51.69, 0.33) }),
+    'bigCity 14000 -28',
+  );
+  // Mexico City arrives as a state ~75 km across: framed as a big city.
+  assert.equal(
+    plan({
+      types: ['administrative_area_level_1'],
+      viewport: box(19.05, -99.36, 19.59, -98.94),
     }),
-    3_000,
+    'bigCity 14000 -28',
   );
+  assert.equal(
+    plan({
+      types: ['administrative_area_level_1'],
+      viewport: box(14, -92, 21, -86),
+    }),
+    'region 900000 -55',
+  );
+  // Countries follow their box within limits.
+  assert.equal(
+    plan({ types: ['country'], viewport: box(-60, -120, 70, 160) }),
+    'country 4000000 -70',
+  );
+  assert.equal(
+    plan({ types: ['country'], viewport: box(18, -74.5, 20.1, -71.6) }),
+    'country 800000 -70',
+  );
+  assert.equal(plan({ types: ['country'] }), 'country 800000 -70');
+  assert.equal(plan({ types: ['park'] }), 'area 5000 -35');
+  assert.equal(plan({ types: [] }), 'other 6000 -30');
+  // 70% down a 60° view is atan(0.4 × tan 30°) ≈ 13°.
+  const degrees = (r) => Math.round((r * 180) / Math.PI);
+  assert.equal(degrees(screenOffsetRadians(Math.PI / 3, 0.7)), 13);
+  assert.equal(screenOffsetRadians(Math.PI / 3, 0.5), 0);
+  assert.equal(screenOffsetRadians(Math.PI / 3, 0.2), 0);
 });
-
 /** A queue whose lookups finish only when the test says so. */
 function deferredQueue() {
   const lookups = new Map();

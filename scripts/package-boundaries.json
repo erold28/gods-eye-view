@@ -1380,6 +1380,7 @@
       "src/app/stateChannel.js",
       "src/app/surfaceServices.js",
       "src/app/tools.js",
+      "src/live/camera.js",
       "src/live/commands.js",
       "src/live/config.js",
       "src/live/countryNames.js",

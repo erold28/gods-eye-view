@@ -195,6 +195,7 @@ export function createApplicationTools({
       viewer,
       placeSearch,
       run: (name, args) => voiceCommands.runner(name, args, { signal }),
+      ground: operations.surface.groundFloor,
       signal,
     }),
   );
