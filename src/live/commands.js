@@ -1,12 +1,14 @@
 import { LIVE_CONFIG } from './config.js';
 import { resolveKreyolAlias } from './kreyolAliases.js';
+import { resolveSpanishAlias } from './spanishAliases.js';
 import { foldText } from './text.js';
 
 /**
  * Read a live comment such as "!ir París" or "!ale Okap".
  *
  * Returns `{ ok: true, command, place, query }`, where `place` is what the
- * viewer wrote and `query` is what to search (a Kreyòl alias is translated),
+ * viewer wrote and `query` is what to search (a Kreyòl or Spanish alias is
+ * translated),
  * or `{ ok: false, reason }`. A comment without a command is `not-command`, so
  * ordinary chat is ignored quietly.
  *
@@ -33,7 +35,7 @@ export function parseLiveComment(text, config = LIVE_CONFIG) {
     ok: true,
     command,
     place,
-    query: resolveKreyolAlias(place) || place,
+    query: resolveKreyolAlias(place) || resolveSpanishAlias(place) || place,
   };
 }
 

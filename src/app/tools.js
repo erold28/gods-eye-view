@@ -5,6 +5,7 @@ import { initImageryBoxTool } from '../ui/imageryBoxTool.js';
 import { createRecentImageryPanel } from '../ui/recentImagery.js';
 import { initGevVoiceCommands } from '../voice/gevRealtime.js';
 import { installViews, isEmbeddedInline } from './embed.js';
+import { installLiveMode } from '../live/install.js';
 import { installScopeMask, destroyScopeMask } from '../scopeMask.js';
 import {
   installRenderGovernor,
@@ -184,6 +185,15 @@ export function createApplicationTools({
       shell: styleManager,
       viewer,
       dataManager,
+      run: (name, args) => voiceCommands.runner(name, args, { signal }),
+      signal,
+    }),
+  );
+  // Live requests from stream comments (Mr. Erold); inactive without ?live=1.
+  defer(
+    installLiveMode({
+      viewer,
+      placeSearch,
       run: (name, args) => voiceCommands.runner(name, args, { signal }),
       signal,
     }),

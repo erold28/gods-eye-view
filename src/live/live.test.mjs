@@ -227,3 +227,135 @@ test('queue: a paused empty screen waits for resume before showing', async () =>
   h.queue.resume();
   assert.deepEqual(h.shows(), ['Paris']);
 });
+
+test('overlay model: banner text, handle, progress and queue limit', async () => {
+  const { liveOverlayModel, liveHandle } = await import('./overlay.js');
+  assert.equal(liveHandle('ana'), '@ana');
+  assert.equal(liveHandle('@@ana'), '@ana');
+  assert.equal(liveHandle('(anónimo)'), '(anónimo)');
+  const request = (id, place, extra = {}) => ({
+    id,
+    user: `u${id}`,
+    place,
+    label: 'نام داخلی',
+    types: ['locality'],
+    country: 'Perú',
+    ...extra,
+  });
+  const model = liveOverlayModel({
+    current: request(1, 'okap', {
+      label: 'Cap-Haïtien, Nord, Ayiti',
+      country: 'Haití',
+    }),
+    upcoming: [2, 3, 4, 5, 6, 7, 8].map((id) => request(id, `lugar ${id}`)),
+    paused: false,
+    remainingMs: (LIVE_CONFIG.displaySeconds * 1000) / 2,
+  });
+  assert.equal(model.mode, 'showing');
+  // The viewer's own word and a Spanish country; never the geocoder label.
+  assert.deepEqual(model.current, {
+    handle: '@u1',
+    place: 'Okap',
+    country: 'Haití',
+    progress: 0.5,
+  });
+  assert.equal(model.upcoming.length, LIVE_CONFIG.queueRowsShown);
+  assert.deepEqual(model.upcoming[0], {
+    position: 1,
+    handle: '@u2',
+    place: 'Lugar 2',
+    country: 'Perú',
+  });
+  assert.equal(model.more, 7 - LIVE_CONFIG.queueRowsShown);
+  const show = (current) =>
+    liveOverlayModel({ current, upcoming: [], remainingMs: 0 }).current;
+  // A country request ("Egipto", geocoded as "مصر") shows only the word typed.
+  assert.deepEqual(
+    show(request(1, 'Egipto', { types: ['country'], country: 'Egipto' })),
+    { handle: '@u1', place: 'Egipto', country: '', progress: 1 },
+  );
+  // The viewer already wrote the country; no unknown country, no suffix.
+  assert.equal(show(request(1, 'perú', { types: ['locality'] })).country, '');
+  assert.equal(show(request(1, 'Lima', { country: null })).country, '');
+  assert.equal(liveOverlayModel({ current: null, upcoming: [] }).mode, 'idle');
+});
+
+test('country lookup names the containing or nearest country in Spanish', async () => {
+  const { createCountryLookup, spanishCountryName } =
+    await import('./countryNames.js');
+  const { readFile } = await import('node:fs/promises');
+  const pack = JSON.parse(
+    await readFile(
+      new URL(
+        '../data/local_data/natural_earth/countries.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  let loads = 0;
+  const lookup = createCountryLookup({
+    loadPack: async () => {
+      loads++;
+      return pack;
+    },
+  });
+  const at = async (lat, lng) => (await lookup.countryAt(lat, lng))?.name;
+  assert.equal(await at(48.86, 2.35), 'Francia');
+  assert.equal(await at(19.76, -72.2), 'Haití'); // Cap-Haïtien, on the coast
+  assert.equal(await at(35.68, 139.76), 'Japón');
+  assert.equal(await at(30.04, 31.24), 'Egipto');
+  assert.equal(await at(-12.05, -77.03), 'Perú');
+  assert.equal(await at(0, -140), undefined); // open Pacific
+  assert.equal(loads, 1);
+  assert.equal(spanishCountryName('DE'), 'Alemania');
+  assert.equal(spanishCountryName('-99', 'Somaliland'), 'Somaliland');
+});
+
+test('spanish aliases send exonyms to the right place', async () => {
+  const { resolveSpanishAlias } = await import('./spanishAliases.js');
+  assert.equal(resolveSpanishAlias('Tokio'), 'Tokyo, Japan');
+  assert.equal(resolveSpanishAlias('nueva york'), 'New York, United States');
+  assert.equal(
+    resolveSpanishAlias('Los Angeles'),
+    'Los Angeles, California, United States',
+  );
+  assert.equal(resolveSpanishAlias('Lima'), null);
+  assert.equal(parseLiveComment('!ir Londres').query, 'London, United Kingdom');
+  assert.equal(
+    parseLiveComment('!ale Pòtoprens').query,
+    'Port-au-Prince, Haiti',
+  );
+});
+
+test('flight range follows the place box, capped by its kind', async () => {
+  const { liveFlightRangeM } = await import('./framing.js');
+  const box = (s, w, n, e) => ({
+    southwest: { lat: s, lng: w },
+    northeast: { lat: n, lng: e },
+  });
+  // A city box ~20 km across frames at ~1.2x its diagonal.
+  const city = liveFlightRangeM({
+    types: ['locality'],
+    viewport: box(48.8, 2.25, 48.9, 2.42),
+  });
+  assert.ok(city > 15_000 && city < 30_000, String(city));
+  // Tokyo's administrative box reaches far islands; the city cap holds.
+  assert.equal(
+    liveFlightRangeM({ types: ['locality'], viewport: box(20, 136, 36, 154) }),
+    60_000,
+  );
+  assert.equal(
+    liveFlightRangeM({ types: ['country'], viewport: box(-60, -120, 70, 160) }),
+    3_000_000,
+  );
+  // No box: half of the kind's cap, never below the minimum.
+  assert.equal(liveFlightRangeM({ types: ['village'] }), 7_500);
+  assert.equal(
+    liveFlightRangeM({
+      types: ['sublocality'],
+      viewport: box(1, 1, 1.001, 1.001),
+    }),
+    3_000,
+  );
+});

@@ -1,0 +1,228 @@
+/*
+ * Live request overlay, laid out for a 9:16 phone frame.
+ *
+ * The column is the largest 9:16 box that fits the window, centred, and every
+ * size is a share of its height (cqh), so the layout is the same on a phone
+ * capture and on a cropped desktop window. Vertical bands keep clear of the
+ * TikTok LIVE interface: its header (top ~10%), comments (lower left, from
+ * ~62%) and buttons (lower right).
+ */
+.gev-live {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  font-family:
+    'Inter',
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  color: #fff;
+  --gev-live-accent: #f0a63c;
+  --gev-live-panel: rgba(8, 12, 20, 0.78);
+  --gev-live-edge: rgba(255, 255, 255, 0.16);
+  --gev-live-shadow: 0 0.3cqh 1.2cqh rgba(0, 0, 0, 0.55);
+}
+
+.gev-live__column {
+  position: relative;
+  height: 100dvh;
+  width: min(100vw, calc(100dvh * 9 / 16));
+  container-type: size;
+}
+
+.gev-live__brand {
+  position: absolute;
+  top: 10.5%;
+  right: 4%;
+  padding: 0.5cqh 1.4cqh;
+  border-radius: 99cqh;
+  background: rgba(8, 12, 20, 0.55);
+  font-size: 1.9cqh;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
+  text-shadow: var(--gev-live-shadow);
+}
+
+.gev-live__instructions {
+  position: absolute;
+  top: 14.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 92%;
+  padding: 0.9cqh 2.4cqh;
+  border-radius: 1.6cqh;
+  background: var(--gev-live-panel);
+  border: 0.2cqh solid var(--gev-live-accent);
+  text-align: center;
+  font-size: 2.5cqh;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* Banner (or waiting message) and the line below it, stacked so a taller
+   banner pushes the line down instead of covering it. Ends above ~62%. */
+.gev-live__stack {
+  position: absolute;
+  top: 24%;
+  left: 5%;
+  right: 5%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.8cqh;
+}
+
+.gev-live__banner,
+.gev-live__idle {
+  padding: 1.8cqh 2.4cqh 2cqh;
+  border-radius: 2.2cqh;
+  background: var(--gev-live-panel);
+  border: 0.2cqh solid var(--gev-live-edge);
+  box-shadow: var(--gev-live-shadow);
+  text-align: center;
+}
+
+.gev-live__who {
+  font-size: 2.8cqh;
+  font-weight: 600;
+  opacity: 0.92;
+}
+
+.gev-live__handle {
+  color: var(--gev-live-accent);
+  font-weight: 800;
+}
+
+.gev-live__place {
+  margin-top: 0.4cqh;
+  font-size: 6.4cqh;
+  font-weight: 900;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  text-shadow: var(--gev-live-shadow);
+}
+
+/* ", Francia" after the place: smaller, so the viewer's word stays the hero
+   while a wrong country still stands out. */
+.gev-live__country {
+  font-size: 0.62em;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.gev-live__queue-place .gev-live__country {
+  font-size: 0.78em;
+}
+
+.gev-live__bar {
+  margin-top: 1.4cqh;
+  height: 0.8cqh;
+  border-radius: 1cqh;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.gev-live__bar-fill {
+  height: 100%;
+  background: var(--gev-live-accent);
+  transform-origin: left center;
+  transition: transform 0.25s linear;
+}
+
+.gev-live__paused {
+  margin-top: 1cqh;
+  font-size: 2.2cqh;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: var(--gev-live-accent);
+}
+
+.gev-live__idle-line {
+  font-size: 5cqh;
+  font-weight: 900;
+  line-height: 1.15;
+  text-shadow: var(--gev-live-shadow);
+}
+
+.gev-live__idle-line + .gev-live__idle-line {
+  color: var(--gev-live-accent);
+}
+
+.gev-live__queue {
+  margin: 0 4%;
+}
+
+.gev-live__queue-title {
+  margin-bottom: 0.6cqh;
+  font-size: 2.1cqh;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: var(--gev-live-shadow);
+}
+
+.gev-live__queue-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.6cqh;
+}
+
+.gev-live__queue-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 1.2cqh;
+  padding: 0.7cqh 1.4cqh;
+  border-radius: 1.2cqh;
+  background: var(--gev-live-panel);
+  border: 0.15cqh solid var(--gev-live-edge);
+  font-size: 2.6cqh;
+}
+
+.gev-live__queue-pos {
+  color: var(--gev-live-accent);
+  font-weight: 900;
+}
+
+.gev-live__queue-place {
+  font-weight: 800;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gev-live__queue-user {
+  font-size: 1.9cqh;
+  opacity: 0.75;
+  max-width: 14cqh;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gev-live__queue-more {
+  margin-top: 0.6cqh;
+  font-size: 2cqh;
+  font-weight: 700;
+  text-align: center;
+  opacity: 0.85;
+}
+
+.gev-live [hidden] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gev-live__bar-fill {
+    transition: none;
+  }
+}

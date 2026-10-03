@@ -10,6 +10,8 @@ export const LIVE_CONFIG = Object.freeze({
   userCooldownSeconds: 60,
   /** Pedidos máximos esperando en la fila (sin contar el que se muestra). */
   maxQueue: 10,
+  /** Próximas ciudades visibles en pantalla; el resto aparece como "+N más". */
+  queueRowsShown: 3,
   /** Largo máximo del nombre de lugar escrito después del comando. */
   maxPlaceLength: 60,
   /** Comandos aceptados al inicio del comentario: español y kreyòl. */

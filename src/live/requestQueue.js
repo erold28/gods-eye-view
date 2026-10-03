@@ -111,6 +111,9 @@ export function createLiveRequestQueue({
         label: place.label || place.name || parsed.query,
         lat: place.lat,
         lng: place.lng,
+        types: [...(place.types || [])],
+        viewport: place.viewport || null,
+        country: place.country || null,
       };
       // Checked again: the lookup was asynchronous and the line may have moved.
       if (upcoming.length >= config.maxQueue)
