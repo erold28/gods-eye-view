@@ -196,6 +196,7 @@ export function createApplicationTools({
       placeSearch,
       run: (name, args) => voiceCommands.runner(name, args, { signal }),
       ground: operations.surface.groundFloor,
+      mapStack: mapStackController,
       signal,
     }),
   );

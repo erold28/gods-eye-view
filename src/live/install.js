@@ -2,6 +2,7 @@ import { createLiveCamera } from './camera.js';
 import { LIVE_CONFIG } from './config.js';
 import { parseLiveComment } from './commands.js';
 import { createCountryLookup } from './countryNames.js';
+import { preferredLiveMap } from './mapPreference.js';
 import { judgeLivePlace } from './placePolicy.js';
 import { createLiveOverlay } from './overlay.js';
 import { connectLiveRelay } from './relayClient.js';
@@ -15,6 +16,16 @@ const IDLE_DELAY_MS = 4000;
 const STARTUP_IDLE_DELAY_MS = 9000;
 /** The app restores its visual state while starting, so the clean view is re-applied. */
 const CLEAN_VIEW_DELAYS_MS = Object.freeze([0, 2000, 8000]);
+/**
+ * When the live view checks its map: early checks only move to Google 3D once
+ * it is ready; the later ones may fall back to Esri (see mapPreference.js).
+ */
+const MAP_CHECKS = Object.freeze([
+  { delayMs: 0, final: false },
+  { delayMs: 2000, final: false },
+  { delayMs: 8000, final: true },
+  { delayMs: 15000, final: true },
+]);
 /** Refused requests the control panel lists. */
 const REJECTED_KEPT = 20;
 
@@ -30,6 +41,8 @@ export function isLiveMode(location = globalThis.location) {
  * `run(name, args)` runs an app action (the same ones voice uses); the HUD
  * goes through it. Flights use the app's own landmark flight (camera.js), with
  * `ground` the app's ground-floor service so the eye never lands underground.
+ * `mapStack` is the app's map controller: live mode always shows Google 3D
+ * when it is available, whatever map the view link remembered.
  *
  * Requests arrive from the control panel or a chat bridge through the
  * /api/live relay (server/live/relay.js), or from the browser console:
@@ -41,6 +54,7 @@ export function installLiveMode({
   placeSearch,
   run,
   ground = null,
+  mapStack = null,
   signal,
   document = globalThis.document,
   location = globalThis.location,
@@ -145,6 +159,22 @@ export function installLiveMode({
       scope.click();
   };
   for (const delay of CLEAN_VIEW_DELAYS_MS) later(cleanView, delay);
+
+  // Switch only when needed, through the app's own map action, so an active
+  // Google 3D is never reloaded and the view link follows the change.
+  const checkMap = (final) => {
+    let target = null;
+    try {
+      target = preferredLiveMap(mapStack?.getState?.(), { final });
+    } catch {
+      return;
+    }
+    if (target)
+      Promise.resolve(run('set_map_stack', { stack: target })).catch(() => {});
+  };
+  if (mapStack)
+    for (const { delayMs, final } of MAP_CHECKS)
+      later(() => checkMap(final), delayMs);
 
   const tick = setInterval(() => {
     queue.update();

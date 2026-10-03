@@ -482,3 +482,38 @@ test('overlay: requests still being looked up are never on air', async () => {
     ['Lima'],
   );
 });
+
+test('live map: Google 3D when available, Esri only after the final check', async () => {
+  const { preferredLiveMap } = await import('./mapPreference.js');
+  const state = (activeId, photoreal, esri = true) => ({
+    activeId,
+    stacks: [
+      { id: 'photoreal', available: photoreal },
+      { id: 'esri-imagery', available: esri },
+      { id: 'osm', available: true },
+    ],
+  });
+  // A view link that remembered the flat map, with a token: switch to 3D.
+  assert.equal(preferredLiveMap(state('esri-imagery', true)), 'photoreal');
+  assert.equal(
+    preferredLiveMap(state('photoreal', true)),
+    null,
+    'never reload 3D',
+  );
+  // 3D not ready yet: wait rather than fall back early.
+  assert.equal(preferredLiveMap(state('osm', false)), null);
+  // No 3D at the final check (no token): Esri, unless already there.
+  assert.equal(
+    preferredLiveMap(state('osm', false), { final: true }),
+    'esri-imagery',
+  );
+  assert.equal(
+    preferredLiveMap(state('esri-imagery', false), { final: true }),
+    null,
+  );
+  assert.equal(
+    preferredLiveMap(state('osm', false, false), { final: true }),
+    null,
+  );
+  assert.equal(preferredLiveMap(null, { final: true }), null);
+});
