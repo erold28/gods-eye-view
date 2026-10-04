@@ -49,6 +49,19 @@
           🪧 Tarjeta: arriba <kbd>T</kbd>
         </button>
       </section>
+      <section class="panel__voice" id="voice-section" aria-live="polite">
+        <div class="panel__listening" id="voice-listening" hidden>
+          🎙 ESCUCHANDO
+        </div>
+        <div class="panel__voice-row">
+          <button type="button" id="voice-talk" class="panel__talk">
+            🎙 Mantener para hablar <kbd>Espacio</kbd>
+          </button>
+          <button type="button" id="voice-stop">⏹ Apagar voz</button>
+        </div>
+        <div class="panel__voice-status" id="voice-status">Voz: apagada</div>
+        <div class="panel__voice-cost" id="voice-cost"></div>
+      </section>
 
       <form class="panel__add" id="add-form" autocomplete="off">
         <label class="panel__field">
@@ -91,7 +104,8 @@
         Atajos fuera de los campos: <kbd>N</kbd> Siguiente · <kbd>S</kbd> Saltar
         · <kbd>P</kbd> Pausa/Continuar · <kbd>E</kbd> Extender ·
         <kbd>A</kbd> Aviones · <kbd>C</kbd> Chat TikTok · <kbd>K</kbd> Cabina ·
-        <kbd>T</kbd> Tarjeta · <kbd>Esc</kbd> salir del campo
+        <kbd>T</kbd> Tarjeta · mantén <kbd>Espacio</kbd> para hablar con la IA ·
+        <kbd>Esc</kbd> salir del campo
       </footer>
     </main>
     <script type="module" src="/src/live/control/panel.js"></script>

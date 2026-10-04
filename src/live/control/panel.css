@@ -313,3 +313,72 @@ input {
     grid-template-columns: 2em 1fr;
   }
 }
+
+.panel__voice {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  display: grid;
+  gap: 10px;
+}
+
+.panel__voice-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 10px;
+}
+
+.panel__talk {
+  font-size: 20px;
+  padding: 18px 10px;
+  user-select: none;
+  touch-action: none;
+}
+
+.panel__talk[data-holding='true'] {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+
+/* Unmissable while the microphone is open. */
+.panel__listening {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: center;
+  animation: panel-listening 1s ease-in-out infinite alternate;
+}
+
+@keyframes panel-listening {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel__listening {
+    animation: none;
+  }
+}
+
+.panel__voice-status {
+  font-weight: 700;
+}
+
+.panel__voice-status[data-available='false'] {
+  color: var(--muted);
+}
+
+.panel__voice-cost {
+  color: var(--muted);
+  font-size: 14px;
+}

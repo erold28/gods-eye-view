@@ -16,6 +16,7 @@ import {
   flightCardModel,
 } from './overlay.js';
 import { connectLiveRelay } from './relayClient.js';
+import { createLiveVoice } from './voiceControl.js';
 import { createLiveRequestQueue } from './requestQueue.js';
 import './overlay.css';
 
@@ -442,6 +443,18 @@ export function installLiveMode({
     return { ok: true, cockpit: cockpitOn };
   };
 
+  // Voz (mantener para hablar) from the panel. Talking pauses the line and
+  // hands the camera over, so the voice can fly it; P returns to the tour.
+  const voice = createLiveVoice({
+    onTalk: () => {
+      camera.yieldControl();
+      queue.pause();
+    },
+    onChange: () => relay?.publish(),
+  });
+  // The voice controller is ready once the app has started: MINI by default.
+  later(() => voice.preferMini(), 1000);
+
   /** Tarjeta: move the flight card to the next position. */
   const cycleCardPosition = () => {
     const next =
@@ -465,6 +478,10 @@ export function installLiveMode({
     toggleFlights,
     toggleCockpit,
     cycleCardPosition,
+    voicePress: () => voice.press(),
+    voiceHold: () => voice.hold(),
+    voiceRelease: () => voice.release(),
+    voiceStop: () => voice.stop(),
     flyNow,
     next: () => queue.next(),
     skip: () => queue.skip(),
@@ -489,6 +506,7 @@ export function installLiveMode({
       flights: flightsVisible(),
       cockpit: cockpitOn,
       cardPosition,
+      voice: voice.state(),
       aircraft: selectedFlight(),
       freeFlight: freeFlight
         ? { place: freeFlight.place, country: freeFlight.country }
@@ -505,6 +523,7 @@ export function installLiveMode({
     lifetime.abort();
     clearInterval(tick);
     clearInterval(blockedWordsTimer);
+    voice.destroy();
     window.removeEventListener(
       'gev:awareness-subject-selected',
       onAircraftSelected,

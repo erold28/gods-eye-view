@@ -1395,6 +1395,7 @@
       "src/live/requestQueue.js",
       "src/live/spanishAliases.js",
       "src/live/text.js",
+      "src/live/voiceControl.js",
       "src/app/viewer.js",
       "src/app/atmosphereCompat.js",
       "src/bloom.js",

@@ -9,6 +9,7 @@ import {
   shortcutFor,
   sourceText,
   tiktokStatus,
+  voicePanel,
 } from './panelModel.js';
 
 /**
@@ -38,6 +39,11 @@ const ui = {
   chatButton: $('chat-button'),
   cockpitButton: $('cockpit-button'),
   cardButton: $('card-button'),
+  voiceTalk: $('voice-talk'),
+  voiceStop: $('voice-stop'),
+  voiceStatus: $('voice-status'),
+  voiceListening: $('voice-listening'),
+  voiceCost: $('voice-cost'),
   form: $('add-form'),
   user: $('user-input'),
   place: $('place-input'),
@@ -108,6 +114,91 @@ document.addEventListener('keydown', (event) => {
   event.preventDefault();
   send({ type: command });
 });
+
+// Voz: mantener para hablar ---------------------------------------------------
+
+/**
+ * While the streamer holds Space or the talk button, the map listens. The
+ * panel repeats "still holding" every 2 s; if those stop (the window closes or
+ * the connection drops) the map lets go by itself after a few seconds.
+ */
+const HOLD_EVERY_MS = 2000;
+let talking = false;
+let holdTimer = null;
+
+function startTalking() {
+  if (talking || !mapConnected || !voicePanel(state?.voice).available) return;
+  talking = true;
+  send({ type: 'voicePress' });
+  holdTimer = setInterval(() => send({ type: 'voiceHold' }), HOLD_EVERY_MS);
+  renderVoice();
+}
+
+function stopTalking() {
+  if (!talking) return;
+  talking = false;
+  clearInterval(holdTimer);
+  holdTimer = null;
+  send({ type: 'voiceRelease' });
+  renderVoice();
+}
+
+/** Space outside the text fields: the same rule as the letter shortcuts. */
+const isTalkKey = (event) =>
+  event.code === 'Space' &&
+  !event.ctrlKey &&
+  !event.altKey &&
+  !event.metaKey &&
+  !['input', 'textarea', 'select'].includes(
+    String(event.target?.tagName || '').toLowerCase(),
+  );
+
+document.addEventListener(
+  'keydown',
+  (event) => {
+    if (!isTalkKey(event)) return;
+    event.preventDefault();
+    if (!event.repeat) startTalking();
+  },
+  true,
+);
+document.addEventListener(
+  'keyup',
+  (event) => {
+    if (event.code !== 'Space' || !talking) return;
+    event.preventDefault();
+    stopTalking();
+  },
+  true,
+);
+ui.voiceTalk.addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  ui.voiceTalk.setPointerCapture?.(event.pointerId);
+  startTalking();
+});
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
+  ui.voiceTalk.addEventListener(type, stopTalking);
+// Never keep listening once the panel is not in front.
+window.addEventListener('blur', stopTalking);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') stopTalking();
+});
+ui.voiceStop.addEventListener('click', () => {
+  stopTalking();
+  send({ type: 'voiceStop' });
+});
+
+function renderVoice() {
+  const voice = voicePanel(mapConnected ? state?.voice : null, talking);
+  ui.voiceListening.hidden = !voice.listening;
+  ui.voiceStatus.textContent = voice.text;
+  ui.voiceStatus.dataset.available = String(voice.available);
+  ui.voiceCost.textContent = voice.cost;
+  ui.voiceTalk.disabled = !voice.available;
+  ui.voiceTalk.dataset.holding = String(talking);
+  ui.voiceStop.disabled = !voice.available || !state?.voice?.active;
+  if (!voice.available && talking) stopTalking();
+}
 
 // Agregar y volar ------------------------------------------------------------
 
@@ -311,6 +402,7 @@ function render() {
   renderNow();
   renderLine(mapConnected ? state?.upcoming || [] : []);
   renderRejected(state?.rejected || []);
+  renderVoice();
 }
 
 // Conexión -------------------------------------------------------------------

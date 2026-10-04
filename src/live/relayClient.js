@@ -39,6 +39,10 @@ export function runLiveCommand(api, command) {
     case 'toggleFlights':
     case 'toggleCockpit':
     case 'cycleCardPosition':
+    case 'voicePress':
+    case 'voiceHold':
+    case 'voiceRelease':
+    case 'voiceStop':
     case 'pause':
     case 'resume':
     case 'togglePause':

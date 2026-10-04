@@ -64,6 +64,48 @@ export function tiktokStatus(tiktok) {
     : { text: `TikTok: esperando que ${who} esté en vivo…`, online: false };
 }
 
+/** Voice status words for the app's session states. */
+const VOICE_STATUS = Object.freeze({
+  idle: 'apagada',
+  connecting: 'conectando…',
+  listening: 'lista',
+  thinking: 'pensando…',
+  speaking: 'respondiendo…',
+  error: 'con error',
+});
+
+/**
+ * The panel's voice block from the map's `voice` state and whether the
+ * streamer is holding the talk control right now: `{ available, listening,
+ * text, cost }`.
+ */
+export function voicePanel(voice, holding = false) {
+  if (!voice?.available)
+    return {
+      available: false,
+      listening: false,
+      text: 'Voz no disponible',
+      cost: '',
+    };
+  const listening = Boolean(holding || voice.listening);
+  const status = VOICE_STATUS[voice.status] || voice.status || 'apagada';
+  const tier = voice.tier ? String(voice.tier).toUpperCase() : '';
+  return {
+    available: true,
+    listening,
+    text: listening
+      ? '🎙 ESCUCHANDO'
+      : voice.status === 'error'
+        ? 'Voz: error — revisa el permiso del micrófono en la ventana del mapa y la clave de OpenAI'
+        : voice.active
+          ? `Voz: ${status}`
+          : 'Voz: apagada — mantén Espacio para hablar',
+    cost: voice.cost
+      ? `Gasto de la sesión: ${voice.cost}${tier ? ` · ${tier}` : ''}${voice.capped ? ' · límite alcanzado' : ''}`
+      : '',
+  };
+}
+
 /** "0:14" for a number of milliseconds. */
 export function formatClock(ms) {
   const total = Math.max(0, Math.ceil((Number(ms) || 0) / 1000));
