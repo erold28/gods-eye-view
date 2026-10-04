@@ -37,6 +37,8 @@ export function runLiveCommand(api, command) {
     case 'skip':
     case 'extend':
     case 'toggleFlights':
+    case 'toggleCockpit':
+    case 'cycleCardPosition':
     case 'pause':
     case 'resume':
     case 'togglePause':

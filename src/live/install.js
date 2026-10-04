@@ -1,3 +1,4 @@
+import { getSelectedEntityContext } from '../data/contextStore.js';
 import { createLiveCamera } from './camera.js';
 import { LIVE_CONFIG } from './config.js';
 import { parseBlockedWordsText, parseLiveComment } from './commands.js';
@@ -9,7 +10,11 @@ import {
   preferSettlementInArea,
 } from './placePolicy.js';
 import { normalizePhotonFeature, photonSearchUrl } from '../keylessGeocoder.js';
-import { createLiveOverlay } from './overlay.js';
+import {
+  CARD_POSITIONS,
+  createLiveOverlay,
+  flightCardModel,
+} from './overlay.js';
 import { connectLiveRelay } from './relayClient.js';
 import { createLiveRequestQueue } from './requestQueue.js';
 import './overlay.css';
@@ -38,6 +43,10 @@ const MAP_CHECKS = Object.freeze([
  */
 const BLOCKED_WORDS_URL = '/palabras-bloqueadas.txt';
 const BLOCKED_WORDS_RELOAD_MS = 60 * 1000;
+/** Layers whose selected contact gets a flight card (live and military). */
+const AIRCRAFT_LAYERS = Object.freeze(['flights', 'military']);
+/** How long after letting an aircraft go its re-selection is ignored. */
+const RELEASE_ECHO_MS = 3000;
 /** Refused requests the control panel lists. */
 const REJECTED_KEPT = 20;
 
@@ -91,6 +100,7 @@ export function installLiveMode({
   run,
   ground = null,
   mapStack = null,
+  dataManager = null,
   signal,
   document = globalThis.document,
   location = globalThis.location,
@@ -175,8 +185,70 @@ export function installLiveMode({
    * outside the line. The line stays paused, with no banner, until resumed.
    */
   let freeFlight = null;
+  /**
+   * The aircraft layer whose contact is selected ("flights" or "military"),
+   * or null. Its card replaces the banner and reads the app's live record.
+   */
+  let selectedAircraftLayer = null;
+  let cockpitOn = false;
+  /** Where the flight card sits: top, middle or bottom (panel key T). */
+  let cardPosition = 'top';
+  const selectedFlight = () =>
+    selectedAircraftLayer ? flightCardModel(getSelectedEntityContext()) : null;
   const render = (state = queue.getState()) =>
-    overlay.render(state, { freeFlight: Boolean(freeFlight) });
+    // In the cockpit its own instruments show the flight: no card or banner
+    // over the view ahead.
+    overlay.render(state, {
+      freeFlight: Boolean(freeFlight) || cockpitOn,
+      flight: cockpitOn ? null : selectedFlight(),
+      cardPosition,
+    });
+
+  /**
+   * Leaving the cockpit re-selects its aircraft for a moment on the app's
+   * side; selections right after a release are that echo, not the streamer.
+   */
+  let releasedAt = -Infinity;
+  /** Let go of the aircraft: leave the cockpit and stop following it. */
+  const releaseAircraft = () => {
+    if (cockpitOn || selectedAircraftLayer) releasedAt = Date.now();
+    if (cockpitOn) {
+      cockpitOn = false;
+      Promise.resolve(run('control_cockpit', { action: 'exit' }))
+        .catch(() => {})
+        .then(keepFlightsOff);
+    }
+    if (selectedAircraftLayer) {
+      selectedAircraftLayer = null;
+      Promise.resolve(run('stop_tracking', {}))
+        .catch(() => {})
+        .then(keepFlightsOff);
+    }
+  };
+
+  // Selecting an aircraft (a click, voice or the cockpit) shows its card and
+  // pauses the line; Continuar (P) lets it go and returns to the tour.
+  const onAircraftSelected = (event) => {
+    if (!AIRCRAFT_LAYERS.includes(event?.detail?.layerId)) return;
+    if (Date.now() - releasedAt < RELEASE_ECHO_MS) {
+      Promise.resolve(run('stop_tracking', {})).catch(() => {});
+      return;
+    }
+    selectedAircraftLayer = event.detail.layerId;
+    // The app follows the aircraft with the camera; the tour steps aside.
+    camera.yieldControl();
+    queue.pause();
+    render();
+    relay?.publish();
+  };
+  const onAircraftCleared = (event) => {
+    if (event?.detail?.layerId !== selectedAircraftLayer) return;
+    selectedAircraftLayer = null;
+    render();
+    relay?.publish();
+  };
+  window.addEventListener('gev:awareness-subject-selected', onAircraftSelected);
+  window.addEventListener('gev:awareness-subject-cleared', onAircraftCleared);
 
   const stopOrbit = () => {
     if (idleTimer !== null) clearTimeout(idleTimer);
@@ -211,6 +283,8 @@ export function installLiveMode({
       freeFlight !== null &&
       ['show', 'resumed', 'idle', 'cleared'].includes(event.type);
     if (leftFreeFlight) freeFlight = null;
+    // Moving on (next city, or Continuar) lets go of a selected aircraft.
+    if (['show', 'resumed'].includes(event.type)) releaseAircraft();
     if (event.type === 'show') fly(event.request);
     else if (event.type === 'paused') stopOrbit();
     else if (leftFreeFlight && event.type === 'resumed' && state.current)
@@ -328,28 +402,69 @@ export function installLiveMode({
   };
 
   // Live aircraft, off by default (heavy on a laptop over a big city). The
-  // app's own layer action shows and hides them.
-  let flightsOn = false;
+  // app's own layer action shows and hides them. `wantFlights` is the
+  // streamer's choice; the panel shows whether the layer is really on, since
+  // selecting an aircraft or entering the cockpit turns it on by itself.
+  let wantFlights = false;
+  const flightsVisible = () =>
+    dataManager?.layers?.get?.('flights')?.enabled ?? wantFlights;
   // The app remembers its layers in the view link; live mode starts with the
-  // aircraft off so the panel's "Aviones: NO" is true, even after Ctrl+R.
+  // aircraft off, even after Ctrl+R, and turns them off again after an
+  // aircraft is let go if the streamer had them off.
   const keepFlightsOff = () => {
-    if (!flightsOn)
+    if (!wantFlights && !selectedAircraftLayer && !cockpitOn)
       Promise.resolve(
         run('set_layer_visibility', { layerId: 'flights', enabled: false }),
       ).catch(() => {});
   };
   for (const delay of CLEAN_VIEW_DELAYS_MS) later(keepFlightsOff, delay);
-  const toggleFlights = async () => {
-    const enabled = !flightsOn;
-    await run('set_layer_visibility', { layerId: 'flights', enabled });
-    flightsOn = enabled;
+
+  /**
+   * Cabina: enter the cockpit of the selected aircraft (or the app's choice
+   * among those in view), or leave it. The tour lets go of the camera and
+   * the line pauses; Continuar (P) leaves the cockpit and resumes the tour.
+   */
+  const toggleCockpit = async () => {
+    if (cockpitOn) {
+      cockpitOn = false;
+      await run('control_cockpit', { action: 'exit' });
+      keepFlightsOff();
+    } else {
+      camera.yieldControl();
+      queue.pause();
+      const result = await run('control_cockpit', {
+        action: 'enter',
+        targetLayer: selectedAircraftLayer || 'flights',
+      });
+      cockpitOn = result?.ok !== false;
+    }
     relay?.publish();
-    return { ok: true, flights: flightsOn };
+    return { ok: true, cockpit: cockpitOn };
+  };
+
+  /** Tarjeta: move the flight card to the next position. */
+  const cycleCardPosition = () => {
+    const next =
+      (CARD_POSITIONS.indexOf(cardPosition) + 1) % CARD_POSITIONS.length;
+    cardPosition = CARD_POSITIONS[next];
+    render();
+    relay?.publish();
+    return { ok: true, cardPosition };
+  };
+
+  const toggleFlights = async () => {
+    const enabled = !flightsVisible();
+    wantFlights = enabled;
+    await run('set_layer_visibility', { layerId: 'flights', enabled });
+    relay?.publish();
+    return { ok: true, flights: flightsVisible() };
   };
 
   const api = {
     submit,
     toggleFlights,
+    toggleCockpit,
+    cycleCardPosition,
     flyNow,
     next: () => queue.next(),
     skip: () => queue.skip(),
@@ -371,7 +486,10 @@ export function installLiveMode({
       at: Date.now(),
       displayMs: config.displaySeconds * 1000,
       ...queue.getState(),
-      flights: flightsOn,
+      flights: flightsVisible(),
+      cockpit: cockpitOn,
+      cardPosition,
+      aircraft: selectedFlight(),
       freeFlight: freeFlight
         ? { place: freeFlight.place, country: freeFlight.country }
         : null,
@@ -387,6 +505,14 @@ export function installLiveMode({
     lifetime.abort();
     clearInterval(tick);
     clearInterval(blockedWordsTimer);
+    window.removeEventListener(
+      'gev:awareness-subject-selected',
+      onAircraftSelected,
+    );
+    window.removeEventListener(
+      'gev:awareness-subject-cleared',
+      onAircraftCleared,
+    );
     for (const id of timers) clearTimeout(id);
     timers.clear();
     stopOrbit();

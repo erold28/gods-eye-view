@@ -59,9 +59,56 @@ function countryOf(request) {
   return foldText(country) === foldText(request.place) ? '' : country;
 }
 
+/** Flight card positions the panel cycles through (T). */
+export const CARD_POSITIONS = Object.freeze(['top', 'middle', 'bottom']);
+
+const FEET_TO_M = 0.3048;
+const KNOTS_TO_KMH = 1.852;
+const thousands = (value) =>
+  Math.round(value).toLocaleString('es', { useGrouping: 'always' });
+
+/** The number at the start of "35,000 ft" or "450 kt", or null. */
+const leadingNumber = (text) => {
+  const match = /^\s*([\d.,]+)/.exec(String(text ?? ''));
+  return match ? Number(match[1].replace(/[.,](?=\d{3}\b)/g, '')) : null;
+};
+
+/**
+ * The flight card for a selected aircraft, from the app's context record
+ * (`properties`: operator, callsign, route "MIA → JFK", altitude "35,000 ft"
+ * or "on ground", speed "450 kt", type). Airline and route only exist when
+ * the app could look them up; the card shows whatever is known. Null when
+ * there is nothing to show.
+ */
+export function flightCardModel(record) {
+  const p = record?.properties;
+  if (!p) return null;
+  const callsign = String(p.callsign || p.name || record.label || '').trim();
+  const airline = String(p.operator || '').trim();
+  const feet = leadingNumber(p.altitude);
+  const knots = leadingNumber(p.speed);
+  const onGround = /ground/i.test(String(p.altitude || ''));
+  if (!callsign && !airline) return null;
+  return {
+    airline,
+    callsign,
+    route: String(p.route || '').trim(),
+    altitude: onGround
+      ? 'En tierra'
+      : Number.isFinite(feet)
+        ? `${thousands(feet * FEET_TO_M)} m`
+        : '',
+    speed: Number.isFinite(knots)
+      ? `${thousands(knots * KNOTS_TO_KMH)} km/h`
+      : '',
+    type: String(p.type || '').trim(),
+  };
+}
+
 /**
  * What the overlay shows for one queue state. Kept free of the DOM so the
- * wording and limits are tested directly.
+ * wording and limits are tested directly. A selected aircraft (`flight`, from
+ * flightCardModel) takes the banner's place.
  */
 export function liveOverlayModel(
   state,
@@ -69,6 +116,7 @@ export function liveOverlayModel(
     config = LIVE_CONFIG,
     maxUpcoming = config.queueRowsShown,
     freeFlight = false,
+    flight = null,
   } = {},
 ) {
   const displayMs = config.displaySeconds * 1000;
@@ -79,7 +127,14 @@ export function liveOverlayModel(
   );
   return {
     // A free flight shows neither the banner nor the waiting message.
-    mode: freeFlight ? 'free' : current ? 'showing' : 'idle',
+    mode: flight
+      ? 'flight'
+      : freeFlight
+        ? 'free'
+        : current
+          ? 'showing'
+          : 'idle',
+    flight,
     paused: Boolean(state?.paused),
     current: current
       ? {
@@ -160,19 +215,72 @@ export function createLiveOverlay({
   const queueMore = el(document, 'div', 'gev-live__queue-more');
   queue.append(queueTitle, queueList, queueMore);
 
+  const card = el(document, 'div', 'gev-live__flight');
+  const cardLabel = el(
+    document,
+    'div',
+    'gev-live__flight-label',
+    '✈ Vuelo en vivo',
+  );
+  const cardAirline = el(document, 'div', 'gev-live__flight-airline');
+  const cardCallsign = el(document, 'div', 'gev-live__flight-callsign');
+  const cardRoute = el(document, 'div', 'gev-live__flight-route');
+  const cardStats = el(document, 'div', 'gev-live__flight-stats');
+  const cardAltitude = el(document, 'div', 'gev-live__flight-stat');
+  const cardSpeed = el(document, 'div', 'gev-live__flight-stat');
+  cardStats.append(cardAltitude, cardSpeed);
+  const cardType = el(document, 'div', 'gev-live__flight-type');
+  card.append(
+    cardLabel,
+    cardAirline,
+    cardCallsign,
+    cardRoute,
+    cardStats,
+    cardType,
+  );
+
+  /** Fill a "label + value" stat, hidden without a value. */
+  const stat = (node, label, value) => {
+    node.replaceChildren(
+      el(document, 'span', 'gev-live__flight-stat-label', label),
+      el(document, 'span', 'gev-live__flight-stat-value', value),
+    );
+    node.hidden = !value;
+  };
+
   const stack = el(document, 'div', 'gev-live__stack');
-  stack.append(banner, idle, queue);
+  stack.append(card, banner, idle, queue);
   column.append(brand, instructions, stack);
   parent.append(root);
 
   return {
     element: root,
-    render(state, { freeFlight = false } = {}) {
-      const model = liveOverlayModel(state, { config, freeFlight });
+    render(
+      state,
+      { freeFlight = false, flight = null, cardPosition = 'top' } = {},
+    ) {
+      const model = liveOverlayModel(state, { config, freeFlight, flight });
       root.dataset.mode = model.mode;
+      // Where the flight card sits; the streamer moves it from the panel.
+      root.dataset.cardPos = CARD_POSITIONS.includes(cardPosition)
+        ? cardPosition
+        : 'top';
       root.classList.toggle('is-paused', model.paused);
       banner.hidden = model.mode !== 'showing';
       idle.hidden = model.mode !== 'idle';
+      card.hidden = model.mode !== 'flight';
+      if (model.flight) {
+        cardAirline.textContent = model.flight.airline;
+        cardAirline.hidden = !model.flight.airline;
+        cardCallsign.textContent = model.flight.callsign;
+        cardRoute.textContent = model.flight.route;
+        cardRoute.hidden = !model.flight.route;
+        stat(cardAltitude, 'Altura', model.flight.altitude);
+        stat(cardSpeed, 'Velocidad', model.flight.speed);
+        cardStats.hidden = !model.flight.altitude && !model.flight.speed;
+        cardType.textContent = model.flight.type;
+        cardType.hidden = !model.flight.type;
+      }
       if (model.current) {
         handle.textContent = model.current.handle;
         placeName.textContent = model.current.place;

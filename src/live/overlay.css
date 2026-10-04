@@ -162,6 +162,84 @@
   color: var(--gev-live-accent);
 }
 
+/* The flight card moves out of the aircraft's way: middle or bottom of the
+   column (the line below it moves with it). */
+.gev-live[data-mode='flight'][data-card-pos='middle'] .gev-live__stack {
+  top: 44%;
+}
+
+.gev-live[data-mode='flight'][data-card-pos='bottom'] .gev-live__stack {
+  top: 62%;
+}
+
+/* Selected aircraft: takes the banner's place, same panel, large type. */
+.gev-live__flight {
+  padding: 1.1cqh 2cqh 1.2cqh;
+  border-radius: 2.2cqh;
+  background: var(--gev-live-panel);
+  border: 0.2cqh solid var(--gev-live-accent);
+  box-shadow: var(--gev-live-shadow);
+  text-align: center;
+}
+
+.gev-live__flight-label {
+  font-size: 2cqh;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gev-live-accent);
+}
+
+.gev-live__flight-airline {
+  margin-top: 0.3cqh;
+  font-size: 2.4cqh;
+  font-weight: 700;
+}
+
+.gev-live__flight-callsign {
+  font-size: 4.6cqh;
+  font-weight: 900;
+  line-height: 1.05;
+  text-shadow: var(--gev-live-shadow);
+}
+
+.gev-live__flight-route {
+  margin-top: 0.4cqh;
+  font-size: 3.4cqh;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.gev-live__flight-stats {
+  display: flex;
+  justify-content: center;
+  gap: 2.4cqh;
+  margin-top: 0.5cqh;
+}
+
+.gev-live__flight-stat {
+  display: grid;
+  gap: 0.2cqh;
+}
+
+.gev-live__flight-stat-label {
+  font-size: 1.7cqh;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.gev-live__flight-stat-value {
+  font-size: 2.8cqh;
+  font-weight: 800;
+}
+
+.gev-live__flight-type {
+  margin-top: 0.4cqh;
+  font-size: 1.9cqh;
+  opacity: 0.75;
+}
+
 .gev-live__queue {
   margin: 0 4%;
 }

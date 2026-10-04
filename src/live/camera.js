@@ -239,6 +239,12 @@ export function createLiveCamera({
       return plan;
     },
 
+    /**
+     * Hand the camera over as if the streamer had grabbed it (the cockpit
+     * takes it): the tour stops where it is and `resume()` brings it back.
+     */
+    yieldControl: () => takeover(),
+
     /** Whether the streamer has taken the camera with the mouse. */
     get userControl() {
       return userControl;

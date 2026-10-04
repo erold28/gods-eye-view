@@ -36,6 +36,8 @@ const ui = {
   extendButton: $('extend-button'),
   flightsButton: $('flights-button'),
   chatButton: $('chat-button'),
+  cockpitButton: $('cockpit-button'),
+  cardButton: $('card-button'),
   form: $('add-form'),
   user: $('user-input'),
   place: $('place-input'),
@@ -51,6 +53,13 @@ const ui = {
 
 ui.extendButton.firstChild.textContent = `⏱ +${LIVE_CONFIG.extendSeconds} s `;
 ui.extendButton.title = `Extender la ciudad en pantalla ${LIVE_CONFIG.extendSeconds} s`;
+
+/** Spanish names of the flight card positions. */
+const CARD_LABELS = Object.freeze({
+  top: 'arriba',
+  middle: 'centro',
+  bottom: 'abajo',
+});
 
 let mapConnected = false;
 let mapWindows = 0;
@@ -247,7 +256,22 @@ function renderNow() {
   ui.paused.hidden = !paused;
   ui.pauseButton.firstChild.textContent = paused ? '▶ Continuar ' : '⏸ Pausa ';
   const current = state?.current;
-  if (state?.freeFlight) {
+  const aircraft = state?.aircraft;
+  if (aircraft) {
+    ui.nowLabel.textContent = state.cockpit
+      ? 'EN CABINA'
+      : 'AVIÓN SELECCIONADO';
+    ui.nowPlace.textContent = [aircraft.callsign, aircraft.airline]
+      .filter(Boolean)
+      .join(' · ');
+    ui.nowDetail.textContent = `${[
+      aircraft.route,
+      aircraft.altitude,
+      aircraft.speed,
+    ]
+      .filter(Boolean)
+      .join(' · ')} — la fila está en pausa: P para continuar.`;
+  } else if (state?.freeFlight) {
     ui.nowLabel.textContent = 'VUELO LIBRE (SIN CARTEL)';
     ui.nowPlace.textContent = placeWithCountry(state.freeFlight);
     ui.nowDetail.textContent = 'La fila está en pausa: pulsa P para continuar.';
@@ -265,6 +289,11 @@ function renderNow() {
   ui.flightsButton.firstChild.textContent = state?.flights
     ? '✈ Aviones: SÍ '
     : '✈ Aviones: NO ';
+  const cardLabel = CARD_LABELS[state?.cardPosition] ?? CARD_LABELS.top;
+  ui.cardButton.firstChild.textContent = `🪧 Tarjeta: ${cardLabel} `;
+  ui.cockpitButton.firstChild.textContent = state?.cockpit
+    ? '🛩 Cabina: salir '
+    : '🛩 Cabina: entrar ';
   ui.extendButton.disabled =
     !mapConnected || !current || Boolean(state?.freeFlight);
 }

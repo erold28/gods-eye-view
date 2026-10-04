@@ -35,6 +35,8 @@ const COMMANDS = Object.freeze({
   skip: [],
   extend: [],
   toggleFlights: [],
+  toggleCockpit: [],
+  cycleCardPosition: [],
   pause: [],
   resume: [],
   togglePause: [],

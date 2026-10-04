@@ -102,6 +102,8 @@ const SHORTCUTS = Object.freeze({
   e: 'extend',
   a: 'toggleFlights',
   c: 'toggleChat',
+  k: 'toggleCockpit',
+  t: 'cycleCardPosition',
 });
 
 /**

@@ -730,3 +730,50 @@ test('a municipality answer gives way to the town of that name inside it', async
   // Cities are never looked up again.
   assert.equal(await preferSettlementInArea(city, find([sinaloa])), city);
 });
+
+test('flight card: airline, callsign, route, metres and km/h', async () => {
+  const { flightCardModel, liveOverlayModel } = await import('./overlay.js');
+  const record = (properties) => ({ label: 'AAL1174', properties });
+  assert.deepEqual(
+    flightCardModel(
+      record({
+        operator: 'American Airlines',
+        callsign: 'AAL1174',
+        route: 'MIA → JFK',
+        altitude: '35,000 ft',
+        speed: '450 kt',
+        type: 'Boeing 737-800',
+      }),
+    ),
+    {
+      airline: 'American Airlines',
+      callsign: 'AAL1174',
+      route: 'MIA → JFK',
+      altitude: '10.668 m',
+      speed: '833 km/h',
+      type: 'Boeing 737-800',
+    },
+  );
+  // A light aircraft: no airline or route, on the ground.
+  assert.deepEqual(
+    flightCardModel(
+      record({ callsign: 'N123AB', altitude: 'on ground', speed: '' }),
+    ),
+    {
+      airline: '',
+      callsign: 'N123AB',
+      route: '',
+      altitude: 'En tierra',
+      speed: '',
+      type: '',
+    },
+  );
+  assert.equal(flightCardModel(null), null);
+  assert.equal(flightCardModel({ properties: {} }), null);
+  // A selected aircraft takes the banner's place.
+  const flight = flightCardModel(record({ callsign: 'AAL1174' }));
+  assert.equal(
+    liveOverlayModel({ current: null, upcoming: [] }, { flight }).mode,
+    'flight',
+  );
+});
