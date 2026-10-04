@@ -364,19 +364,21 @@ test('camera tour: general and close views by kind of place', async () => {
   assert.equal(plan({ types: ['village'] }), 'town 2000→250');
   assert.equal(plan({ types: ['neighborhood'] }), 'neighborhood 1500→200');
   assert.equal(plan({ types: [] }), 'other 3000→350');
-  // Countries, regions and large areas stay high: no close view.
-  assert.equal(
-    plan({ types: ['country'], viewport: box(-60, -120, 70, 160) }),
-    'country 4000000 -70',
-  );
-  assert.equal(plan({ types: ['country'] }), 'country 800000 -70');
+  // Countries and states also come down, from their shape to their cities.
+  assert.equal(plan({ types: ['country'] }), 'country 1000000→150000');
+  // Florida: a state far larger than a city region.
   assert.equal(
     plan({
       types: ['administrative_area_level_1'],
-      viewport: box(14, -92, 21, -86),
+      viewport: box(24.4, -87.6, 31.0, -80.0),
     }),
-    'region 900000 -55',
+    'region 250000→30000',
   );
+  assert.equal(
+    plan({ types: ['administrative_area_level_2'] }),
+    'district 120000→20000',
+  );
+  // Large areas (parks, mountain ranges) stay high: no close view.
   assert.equal(plan({ types: ['park'] }), 'area 5000 -35');
 
   // The descent eases from the general view to the close one.
@@ -389,8 +391,8 @@ test('camera tour: general and close views by kind of place', async () => {
     half.heightM < city.overview.heightM && half.heightM > city.close.heightM,
     String(half.heightM),
   );
-  const country = liveFramingPlan({ types: ['country'] });
-  assert.deepEqual(descentView(country, 0.5), country.overview);
+  const park = liveFramingPlan({ types: ['park'] });
+  assert.deepEqual(descentView(park, 0.5), park.overview);
 
   // 70% down a 60° view is atan(0.4 × tan 30°) ≈ 13°.
   const degrees = (r) => Math.round((r * 180) / Math.PI);

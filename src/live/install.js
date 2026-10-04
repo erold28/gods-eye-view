@@ -261,6 +261,15 @@ export function installLiveMode({
   // Live aircraft, off by default (heavy on a laptop over a big city). The
   // app's own layer action shows and hides them.
   let flightsOn = false;
+  // The app remembers its layers in the view link; live mode starts with the
+  // aircraft off so the panel's "Aviones: NO" is true, even after Ctrl+R.
+  const keepFlightsOff = () => {
+    if (!flightsOn)
+      Promise.resolve(
+        run('set_layer_visibility', { layerId: 'flights', enabled: false }),
+      ).catch(() => {});
+  };
+  for (const delay of CLEAN_VIEW_DELAYS_MS) later(keepFlightsOff, delay);
   const toggleFlights = async () => {
     const enabled = !flightsOn;
     await run('set_layer_visibility', { layerId: 'flights', enabled });

@@ -33,7 +33,7 @@ export const LIVE_CONFIG = Object.freeze({
    *   3. Bajada lenta           (descentSeconds, hasta "closeHeight")
    *   4. Giro muy lento         (el resto del tiempo, orbitDegreesPerSecond)
    * Si el 3D todavía carga al final de la vista general, la bajada espera
-   * hasta "waitForTilesSeconds". Los países y regiones no bajan.
+   * hasta "waitForTilesSeconds". Las zonas grandes (parques, montañas) no bajan.
    */
   camera: Object.freeze({
     flightSeconds: 10,
@@ -95,26 +95,34 @@ export const LIVE_CONFIG = Object.freeze({
       closePitch: -20,
     }),
     /**
-     * Lugares que se quedan altos: la distancia de la cámara al centro
-     * (metros) sigue el tamaño del lugar entre "minMeters" y "maxMeters".
+     * Países, estados y regiones: vista general alta para ver su forma y
+     * bajada hasta una altura desde la que se ven ciudades y costa.
      */
     country: Object.freeze({
-      minMeters: 800_000,
-      maxMeters: 4_000_000,
-      pitch: -70,
+      overviewHeight: 1_000_000,
+      closeHeight: 150_000,
+      overviewPitch: -70,
+      closePitch: -50,
     }),
     region: Object.freeze({
-      minMeters: 200_000,
-      maxMeters: 900_000,
-      pitch: -55,
+      overviewHeight: 250_000,
+      closeHeight: 30_000,
+      overviewPitch: -60,
+      closePitch: -40,
       bigCityBelowKm: 150,
     }),
     district: Object.freeze({
-      minMeters: 60_000,
-      maxMeters: 300_000,
-      pitch: -45,
+      overviewHeight: 120_000,
+      closeHeight: 20_000,
+      overviewPitch: -55,
+      closePitch: -35,
       bigCityBelowKm: 150,
     }),
+    /**
+     * Parques, montañas, lagos y otras zonas grandes se quedan altos: la
+     * distancia de la cámara al centro (metros) sigue el tamaño del lugar
+     * entre "minMeters" y "maxMeters".
+     */
     area: Object.freeze({ minMeters: 5_000, maxMeters: 150_000, pitch: -35 }),
   }),
 });

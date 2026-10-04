@@ -27,7 +27,9 @@ const GROUND_EASE_PER_SECOND = 1.5;
  *   descent  → a slow, eased descent to the close view
  *   orbit    → a very slow turn around the centre, until the next request
  *
- * Countries, regions and large areas have no close view: they orbit high.
+ * Countries and states come down too, to a height that still shows their
+ * cities; large areas (parks, mountain ranges) have no close view and orbit
+ * high.
  * Throughout, the centre of the place sits low on screen (`placeScreenY`),
  * below the banner.
  *

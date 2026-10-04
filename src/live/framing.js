@@ -102,10 +102,10 @@ const view = (rangeM, pitchDeg) => ({
 
 /**
  * The mini tour for an accepted place: `{ kind, overview, close }`, each view
- * `{ rangeM, pitchDeg, heightM }`. Settlements have both views (a general view,
- * then a slow descent to `close`); countries, regions, districts and large
- * areas stay high, with `close: null`, following the place's own box within
- * `minMeters`/`maxMeters` (the lower limit without a box).
+ * `{ rangeM, pitchDeg, heightM }`. Settlements, countries, states and
+ * districts have both views (a general view, then a slow descent to `close`);
+ * large areas stay high, with `close: null`, following the place's own box
+ * within `minMeters`/`maxMeters` (the lower limit without a box).
  */
 export function liveFramingPlan(place, camera = LIVE_CONFIG.camera) {
   const kind = liveFramingKind(place, camera);
