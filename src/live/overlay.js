@@ -261,7 +261,7 @@ export function createLiveOverlay({
     ) {
       const model = liveOverlayModel(state, { config, freeFlight, flight });
       root.dataset.mode = model.mode;
-      // Where the flight card sits; the streamer moves it from the panel.
+      // Where the cards sit; the streamer moves them from the panel.
       root.dataset.cardPos = CARD_POSITIONS.includes(cardPosition)
         ? cardPosition
         : 'top';

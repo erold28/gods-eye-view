@@ -164,12 +164,15 @@
 
 /* The flight card moves out of the aircraft's way: middle or bottom of the
    column (the line below it moves with it). */
-.gev-live[data-mode='flight'][data-card-pos='middle'] .gev-live__stack {
+/* The streamer moves the cards (city, idle, flight) off the view with T. */
+.gev-live[data-card-pos='middle'] .gev-live__stack {
   top: 44%;
 }
 
-.gev-live[data-mode='flight'][data-card-pos='bottom'] .gev-live__stack {
-  top: 62%;
+/* Grows upward from above TikTok's comment area, so a long line still fits. */
+.gev-live[data-card-pos='bottom'] .gev-live__stack {
+  top: auto;
+  bottom: 24%;
 }
 
 /* Selected aircraft: takes the banner's place, same panel, large type. */
