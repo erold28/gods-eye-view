@@ -1,0 +1,10 @@
+# Palabras bloqueadas para los pedidos del live (!ir / !ale).
+#
+# - Escribe UNA palabra o frase por línea, debajo de estas notas.
+# - Da igual mayúsculas o acentos: "malpale" también bloquea "MALPALÉ".
+# - Los plurales (-s, -es) y las frases escritas juntas se bloquean solos:
+#   "sal pwop" también bloquea "salpwop" y "sal pwops".
+# - Las líneas que empiezan con # son notas y se ignoran.
+# - Guarda el archivo: la app lo vuelve a leer cada minuto, incluso en vivo.
+#
+# Escribe tus palabras aquí abajo:

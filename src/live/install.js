@@ -1,6 +1,6 @@
 import { createLiveCamera } from './camera.js';
 import { LIVE_CONFIG } from './config.js';
-import { parseLiveComment } from './commands.js';
+import { parseBlockedWordsText, parseLiveComment } from './commands.js';
 import { createCountryLookup } from './countryNames.js';
 import { preferredLiveMap } from './mapPreference.js';
 import {
@@ -31,6 +31,13 @@ const MAP_CHECKS = Object.freeze([
   { delayMs: 8000, final: true },
   { delayMs: 15000, final: true },
 ]);
+/**
+ * The streamer's own list of blocked words, at the project root. It stays on
+ * their PC (excluded from git); palabras-bloqueadas.ejemplo.txt is the
+ * template the launcher copies when the list is missing.
+ */
+const BLOCKED_WORDS_URL = '/palabras-bloqueadas.txt';
+const BLOCKED_WORDS_RELOAD_MS = 60 * 1000;
 /** Refused requests the control panel lists. */
 const REJECTED_KEPT = 20;
 
@@ -126,7 +133,32 @@ export function installLiveMode({
       .catch(() => null);
     return { ...place, country: country?.name || null };
   };
-  const queue = createLiveRequestQueue({ config, resolvePlace });
+  // The config the line reads at each request: blocked words from config.js
+  // plus palabras-bloqueadas.txt, re-read every minute so edits apply live.
+  const liveConfig = { ...config, blockedWords: [...config.blockedWords] };
+  const loadBlockedWords = async () => {
+    try {
+      const response = await fetch(BLOCKED_WORDS_URL, {
+        cache: 'no-store',
+        signal: lifetime.signal,
+      });
+      // A missing file can come back as the app's page: only plain text counts.
+      const type = response.headers.get('content-type') || '';
+      if (!response.ok || !type.includes('text/plain')) return;
+      liveConfig.blockedWords = [
+        ...config.blockedWords,
+        ...parseBlockedWordsText(await response.text()),
+      ];
+    } catch {
+      // Keep the last list; the file is optional.
+    }
+  };
+  loadBlockedWords();
+  const blockedWordsTimer = setInterval(
+    loadBlockedWords,
+    BLOCKED_WORDS_RELOAD_MS,
+  );
+  const queue = createLiveRequestQueue({ config: liveConfig, resolvePlace });
   const overlay = createLiveOverlay({ document, config });
   // Moving the map by hand pauses the line; Continuar (P) resumes the tour.
   const camera = createLiveCamera({
@@ -269,7 +301,7 @@ export function installLiveMode({
   const flyNow = async (place) => {
     const text = `!ir ${String(place ?? '').trim()}`;
     const entry = { user: '', text, source: 'panel-fly' };
-    const parsed = parseLiveComment(text, config);
+    const parsed = parseLiveComment(text, liveConfig);
     if (!parsed.ok) {
       reject(entry, parsed);
       return parsed;
@@ -354,6 +386,7 @@ export function installLiveMode({
     signal?.removeEventListener('abort', cleanup);
     lifetime.abort();
     clearInterval(tick);
+    clearInterval(blockedWordsTimer);
     for (const id of timers) clearTimeout(id);
     timers.clear();
     stopOrbit();

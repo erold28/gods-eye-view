@@ -79,6 +79,49 @@ test('commands: blocked words and phrases', () => {
   assert.equal(parseLiveComment('!ir Feodosia', config).ok, true);
 });
 
+test('blocked words: plurals, joined phrases, Kreyòl and the text file', async () => {
+  const { blockedWordForms, parseBlockedWordsText } =
+    await import('./commands.js');
+  assert.deepEqual(blockedWordForms('Grosería'), [
+    'groseria',
+    'groserias',
+    'groseriaes',
+  ]);
+  assert.deepEqual(blockedWordForms('sal pwòp'), [
+    'sal pwop',
+    'sal pwops',
+    'sal pwopes',
+    'salpwop',
+    'salpwops',
+    'salpwopes',
+  ]);
+  assert.deepEqual(blockedWordForms('  '), []);
+  const config = {
+    ...LIVE_CONFIG,
+    blockedWords: ['malpalé', 'grosería', 'sal pwòp', 'feo'],
+  };
+  const reason = (text) => parseLiveComment(text, config).reason || 'ok';
+  assert.equal(reason('!ale Malpale vil'), 'blocked-word');
+  assert.equal(reason('!ir Groserías'), 'blocked-word');
+  assert.equal(reason('!ale salpwòp'), 'blocked-word');
+  assert.equal(reason('!ale Sal Pwops'), 'blocked-word');
+  assert.equal(reason('!ir Feos'), 'blocked-word');
+  // Words that merely contain a blocked one are still fine.
+  assert.equal(reason('!ir Feodosia'), 'ok');
+  assert.equal(reason('!ale Okap'), 'ok');
+
+  const file = [
+    '# Palabras bloqueadas',
+    '',
+    '  malpale  ',
+    '# nota',
+    'sal pwop',
+    '',
+  ].join('\r\n');
+  assert.deepEqual(parseBlockedWordsText(file), ['malpale', 'sal pwop']);
+  assert.deepEqual(parseBlockedWordsText(''), []);
+});
+
 test('kreyòl aliases ignore accents, case and spaces', () => {
   assert.equal(resolveKreyolAlias('Pòtoprens'), 'Port-au-Prince, Haiti');
   assert.equal(resolveKreyolAlias('potoprens'), 'Port-au-Prince, Haiti');

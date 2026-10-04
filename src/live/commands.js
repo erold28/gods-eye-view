@@ -60,11 +60,34 @@ export function placeQuery(place) {
   return sameCountry ? alias : `${split.city}, ${split.country}`;
 }
 
+/**
+ * The forms of one blocked word or phrase that are refused: as written, its
+ * plural (-s, -es), and, for a phrase, written as one word ("sal pwòp" also
+ * blocks "salpwòp" and "salpwòps"). Matching ignores accents and case.
+ */
+export function blockedWordForms(blocked) {
+  const phrase = foldText(blocked).replace(/-/g, ' ').trim();
+  if (!phrase) return [];
+  const joined = phrase.replace(/\s+/g, '');
+  const bases = [...new Set([phrase, joined])];
+  return [...new Set(bases.flatMap((base) => [base, `${base}s`, `${base}es`]))];
+}
+
 function containsBlockedWord(place, blockedWords) {
   if (!blockedWords?.length) return false;
   const padded = ` ${foldText(place).replace(/-/g, ' ')} `;
-  return blockedWords.some((blocked) => {
-    const phrase = foldText(blocked);
-    return phrase && padded.includes(` ${phrase} `);
-  });
+  return blockedWords.some((blocked) =>
+    blockedWordForms(blocked).some((form) => padded.includes(` ${form} `)),
+  );
+}
+
+/**
+ * The words in palabras-bloqueadas.txt: one per line; empty lines and lines
+ * starting with "#" are ignored.
+ */
+export function parseBlockedWordsText(text) {
+  return String(text ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'));
 }
