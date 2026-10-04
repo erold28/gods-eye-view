@@ -65,7 +65,10 @@ export function formatTime(at) {
 
 /** "Lima, Perú", or the place alone when the country is unknown. */
 export function placeWithCountry({ place, country } = {}) {
-  return country ? `${place}, ${country}` : String(place || '');
+  const text = String(place || '').trim();
+  // "tapachula" as typed reads as "Tapachula", as on the banner.
+  const name = text.charAt(0).toLocaleUpperCase() + text.slice(1);
+  return country ? `${name}, ${country}` : name;
 }
 
 /**

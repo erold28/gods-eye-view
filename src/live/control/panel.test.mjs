@@ -51,6 +51,10 @@ test('panel: refusals read in plain Spanish', () => {
     'Lima, Perú',
   );
   assert.equal(placeWithCountry({ place: 'Egipto', country: null }), 'Egipto');
+  assert.equal(
+    placeWithCountry({ place: 'tapachula', country: 'México' }),
+    'Tapachula, México',
+  );
 });
 
 test('panel: countdown keeps moving between updates unless paused', () => {

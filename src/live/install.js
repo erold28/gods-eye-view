@@ -3,7 +3,12 @@ import { LIVE_CONFIG } from './config.js';
 import { parseLiveComment } from './commands.js';
 import { createCountryLookup } from './countryNames.js';
 import { preferredLiveMap } from './mapPreference.js';
-import { judgeLivePlace, preferCityOverState } from './placePolicy.js';
+import {
+  judgeLivePlace,
+  preferCityOverState,
+  preferSettlementInArea,
+} from './placePolicy.js';
+import { normalizePhotonFeature, photonSearchUrl } from '../keylessGeocoder.js';
 import { createLiveOverlay } from './overlay.js';
 import { connectLiveRelay } from './relayClient.js';
 import { createLiveRequestQueue } from './requestQueue.js';
@@ -28,6 +33,30 @@ const MAP_CHECKS = Object.freeze([
 ]);
 /** Refused requests the control panel lists. */
 const REJECTED_KEPT = 20;
+
+/** Settlement kinds asked of the keyless geocoder (OpenStreetMap place=*). */
+const SETTLEMENT_TAGS = Object.freeze([
+  'place:city',
+  'place:town',
+  'place:village',
+]);
+
+/**
+ * Towns and cities called `name`, best first, from the app's keyless
+ * geocoder (Photon), asking for settlements only.
+ */
+async function findSettlements(name, signal) {
+  const url = new URL(photonSearchUrl(name, { limit: 5 }));
+  for (const tag of SETTLEMENT_TAGS) url.searchParams.append('osm_tag', tag);
+  const response = await fetch(url, {
+    signal: AbortSignal.any(
+      [signal, AbortSignal.timeout(6000)].filter(Boolean),
+    ),
+  });
+  if (!response.ok) return [];
+  const body = await response.json();
+  return (body?.features || []).map(normalizePhotonFeature).filter(Boolean);
+}
 
 /** Whether this page was opened for streaming with `?live=1`. */
 export function isLiveMode(location = globalThis.location) {
@@ -81,8 +110,16 @@ export function installLiveMode({
       (await placeSearch.geocode(text, { signal })).place;
     const first = await geocode(query);
     if (!first) return null;
-    // "Puebla" answers as the state; ask again for the city of that name.
-    const place = await preferCityOverState(first, geocode, config.camera);
+    // A municipality or state answer ("Tapachula", "Puebla") points at the
+    // middle of its land: prefer the town of that name inside it, then, for
+    // large states, a second lookup as "Name, Name, Country".
+    const town = await preferSettlementInArea(first, (name) =>
+      findSettlements(name, signal),
+    );
+    const place =
+      town === first
+        ? await preferCityOverState(first, geocode, config.camera)
+        : town;
     // The country only labels the overlay; a failed lookup never refuses.
     const country = await countries
       .countryAt(place.lat, place.lng)

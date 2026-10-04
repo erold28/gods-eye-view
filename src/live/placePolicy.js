@@ -164,3 +164,50 @@ export async function preferCityOverState(
   if (place.viewport && !insideBox(place.viewport, city)) return place;
   return city;
 }
+
+/** Without a box, a settlement this close to the area's point is its town. */
+const NEAR_AREA_KM = 30;
+
+function distanceKm(a, b) {
+  const rad = Math.PI / 180;
+  const h =
+    Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 +
+    Math.cos(a.lat * rad) *
+      Math.cos(b.lat * rad) *
+      Math.sin(((b.lng - a.lng) * rad) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/**
+ * A municipality or state answer points at the middle of its land: Tapachula's
+ * municipality centre is coffee fields 7 km from the city, and Mexico City's
+ * is south of its historic centre. When the answer is such an area, look for a
+ * settlement of the same name (`findSettlements(name)` resolves to candidate
+ * places, best first) inside it, and use that instead. Every size of area is
+ * checked, unlike the second lookup above, which is for large states only.
+ */
+export async function preferSettlementInArea(place, findSettlements) {
+  if (!place || !hasType(place, STATE_TYPES)) return place;
+  const name = stateName(place);
+  if (!name) return place;
+  let candidates = [];
+  try {
+    candidates = (await findSettlements(name)) || [];
+  } catch {
+    return place;
+  }
+  const folded = foldText(name);
+  const inside = (candidate) =>
+    place.viewport
+      ? insideBox(place.viewport, candidate)
+      : distanceKm(place, candidate) <= NEAR_AREA_KM;
+  return (
+    candidates.find(
+      (candidate) =>
+        candidate &&
+        hasType(candidate, SETTLEMENT_TYPES) &&
+        foldText(stateName(candidate)) === folded &&
+        inside(candidate),
+    ) || place
+  );
+}

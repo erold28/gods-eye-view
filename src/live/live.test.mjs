@@ -626,3 +626,64 @@ test('a city named like its state is reached through a second lookup', async () 
     pueblaState,
   );
 });
+
+test('a municipality answer gives way to the town of that name inside it', async () => {
+  const { preferSettlementInArea } = await import('./placePolicy.js');
+  const box = (s, w, n, e) => ({
+    southwest: { lat: s, lng: w },
+    northeast: { lat: n, lng: e },
+  });
+  // Tapachula: the municipality's point is in coffee fields.
+  const municipality = {
+    name: 'Tapachula',
+    label: 'Tapachula, Chiapas, México',
+    types: ['administrative_area_level_2'],
+    lat: 14.926,
+    lng: -92.322,
+    viewport: box(14.7, -92.5, 15.2, -92.1),
+  };
+  const town = (lat, lng, extra = {}) => ({
+    name: 'Tapachula',
+    label: 'Tapachula, Chiapas, México',
+    types: ['locality'],
+    lat,
+    lng,
+    ...extra,
+  });
+  const city = town(14.904, -92.261);
+  const sinaloa = town(25.531, -108.515);
+  const asked = [];
+  const find = (list) => async (name) => {
+    asked.push(name);
+    return list;
+  };
+  // The one inside the municipality wins, even when listed second.
+  assert.equal(
+    await preferSettlementInArea(municipality, find([sinaloa, city])),
+    city,
+  );
+  assert.deepEqual(asked, ['Tapachula']);
+  // No town inside, another name, not a town, or offline: keep the answer.
+  const keep = (list) => preferSettlementInArea(municipality, find(list));
+  assert.equal(await keep([sinaloa]), municipality);
+  assert.equal(
+    await keep([town(14.9, -92.26, { name: 'Tapachulita' })]),
+    municipality,
+  );
+  assert.equal(
+    await keep([town(14.9, -92.26, { types: ['route'] })]),
+    municipality,
+  );
+  assert.equal(await keep([]), municipality);
+  assert.equal(
+    await preferSettlementInArea(municipality, async () => {
+      throw new Error('offline');
+    }),
+    municipality,
+  );
+  // Without a box, a town within 30 km of the area's point counts.
+  const noBox = { ...municipality, viewport: null };
+  assert.equal(await preferSettlementInArea(noBox, find([city])), city);
+  // Cities are never looked up again.
+  assert.equal(await preferSettlementInArea(city, find([sinaloa])), city);
+});
