@@ -15,6 +15,9 @@ export const LIVE_IDLE_LINES = Object.freeze([
 
 export const LIVE_BRAND = 'Mr. Erold';
 
+/** Small call to follow, under the instructions (clear of TikTok's header). */
+export const LIVE_FOLLOW = 'Sígueme para más viajes 🌎';
+
 const MAX_USER_CHARS = 20;
 const MAX_PLACE_CHARS = 28;
 
@@ -126,6 +129,7 @@ export function createLiveOverlay({
   const instructions = el(document, 'div', 'gev-live__instructions');
   for (const line of LIVE_INSTRUCTIONS)
     instructions.append(el(document, 'div', 'gev-live__instruction', line));
+  instructions.append(el(document, 'div', 'gev-live__follow', LIVE_FOLLOW));
 
   const banner = el(document, 'div', 'gev-live__banner');
   const who = el(document, 'div', 'gev-live__who');

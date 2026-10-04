@@ -64,33 +64,33 @@ export const LIVE_CONFIG = Object.freeze({
      */
     bigCity: Object.freeze({
       overviewHeight: 4_500,
-      closeHeight: 500,
+      closeHeight: 800,
       overviewPitch: -35,
       closePitch: -20,
       fromKm: 60,
     }),
     city: Object.freeze({
       overviewHeight: 3_000,
-      closeHeight: 350,
+      closeHeight: 600,
       overviewPitch: -35,
       closePitch: -20,
       fromKm: 6,
     }),
     town: Object.freeze({
       overviewHeight: 2_000,
-      closeHeight: 250,
+      closeHeight: 450,
       overviewPitch: -35,
       closePitch: -20,
     }),
     neighborhood: Object.freeze({
       overviewHeight: 1_500,
-      closeHeight: 200,
+      closeHeight: 350,
       overviewPitch: -35,
       closePitch: -20,
     }),
     other: Object.freeze({
       overviewHeight: 3_000,
-      closeHeight: 350,
+      closeHeight: 600,
       overviewPitch: -35,
       closePitch: -20,
     }),

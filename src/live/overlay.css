@@ -69,9 +69,16 @@
 
 /* Banner (or waiting message) and the line below it, stacked so a taller
    banner pushes the line down instead of covering it. Ends above ~62%. */
+.gev-live__follow {
+  margin-top: 0.4cqh;
+  font-size: 1.8cqh;
+  font-weight: 600;
+  color: var(--gev-live-accent);
+}
+
 .gev-live__stack {
   position: absolute;
-  top: 24%;
+  top: 26%;
   left: 5%;
   right: 5%;
   display: flex;

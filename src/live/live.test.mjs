@@ -385,28 +385,28 @@ test('camera tour: general and close views by kind of place', async () => {
       ? `${kind} ${overview.heightM}→${close.heightM}`
       : `${kind} ${overview.rangeM} ${overview.pitchDeg}`;
   };
-  // Cities: general view at ~3 km, then down to ~350 m.
+  // Cities: general view at ~3 km, then down to ~600 m.
   assert.equal(
     plan({ types: ['locality'], viewport: box(21.06, -86.92, 21.2, -86.8) }),
-    'city 3000→350',
+    'city 3000→600',
   );
-  assert.equal(plan({ types: ['sublocality'] }), 'city 3000→350');
-  assert.equal(plan({ types: ['locality'] }), 'city 3000→350');
+  assert.equal(plan({ types: ['sublocality'] }), 'city 3000→600');
+  assert.equal(plan({ types: ['locality'] }), 'city 3000→600');
   // Big cities stay a little higher; towns and neighbourhoods go lower.
   assert.equal(
     plan({ types: ['locality'], viewport: box(51.28, -0.51, 51.69, 0.33) }),
-    'bigCity 4500→500',
+    'bigCity 4500→800',
   );
   assert.equal(
     plan({
       types: ['administrative_area_level_1'],
       viewport: box(19.05, -99.36, 19.59, -98.94),
     }),
-    'bigCity 4500→500',
+    'bigCity 4500→800',
   );
-  assert.equal(plan({ types: ['village'] }), 'town 2000→250');
-  assert.equal(plan({ types: ['neighborhood'] }), 'neighborhood 1500→200');
-  assert.equal(plan({ types: [] }), 'other 3000→350');
+  assert.equal(plan({ types: ['village'] }), 'town 2000→450');
+  assert.equal(plan({ types: ['neighborhood'] }), 'neighborhood 1500→350');
+  assert.equal(plan({ types: [] }), 'other 3000→600');
   // Countries and states also come down, from their shape to their cities.
   assert.equal(plan({ types: ['country'] }), 'country 1000000→150000');
   // Florida: a state far larger than a city region.
