@@ -17,6 +17,7 @@ import {
 } from './overlay.js';
 import { connectLiveRelay } from './relayClient.js';
 import { createLiveVoice } from './voiceControl.js';
+import { createLandmarkLabels } from './landmarks.js';
 import { createLiveRequestQueue } from './requestQueue.js';
 import './overlay.css';
 
@@ -48,6 +49,14 @@ const BLOCKED_WORDS_RELOAD_MS = 60 * 1000;
 const AIRCRAFT_LAYERS = Object.freeze(['flights', 'military']);
 /** How long after letting an aircraft go its re-selection is ignored. */
 const RELEASE_ECHO_MS = 3000;
+/** Search radius for a city's famous places, by camera kind (framing.js). */
+const LANDMARK_RADIUS_KM = Object.freeze({
+  bigCity: 10,
+  city: 6,
+  town: 3,
+  neighborhood: 3,
+  other: 5,
+});
 /** Refused requests the control panel lists. */
 const REJECTED_KEPT = 20;
 
@@ -170,6 +179,7 @@ export function installLiveMode({
     BLOCKED_WORDS_RELOAD_MS,
   );
   const queue = createLiveRequestQueue({ config: liveConfig, resolvePlace });
+  const landmarks = createLandmarkLabels({ viewer });
   const overlay = createLiveOverlay({ document, config });
   // Moving the map by hand pauses the line; Continuar (P) resumes the tour.
   const camera = createLiveCamera({
@@ -268,10 +278,19 @@ export function installLiveMode({
     }, delay);
   };
 
-  const fly = (request) => {
+  const fly = (request, { keepLandmarks = false } = {}) => {
     stopOrbit();
     try {
-      camera.tour(request);
+      const plan = camera.tour(request);
+      // A city's famous places are looked up during the 10 s flight; a flight
+      // to one of them keeps the list of the city around it.
+      if (keepLandmarks) return;
+      const radiusKm = LANDMARK_RADIUS_KM[plan?.kind];
+      if (radiusKm)
+        landmarks
+          .load(request.lat, request.lng, radiusKm)
+          .then(() => relay?.publish());
+      else landmarks.clear();
     } catch (error) {
       console.warn('[Live] Flight failed:', error);
     }
@@ -373,6 +392,28 @@ export function installLiveMode({
    * The same rules as any request apply: aliases, no numbers or links, and
    * public places only.
    */
+  /**
+   * "Ir" in the panel's list of famous places: fly there like Volar ahora,
+   * with the line paused; P returns to the city's tour.
+   */
+  const flyToLandmark = (id) => {
+    const place = landmarks.find(String(id ?? ''));
+    if (!place) return { ok: false, reason: 'not-found' };
+    queue.pause();
+    freeFlight = {
+      place: place.name,
+      country: queue.getState().current?.country || null,
+      lat: place.lat,
+      lng: place.lng,
+      types: ['landmark'],
+      viewport: null,
+    };
+    fly(freeFlight, { keepLandmarks: true });
+    render();
+    relay?.publish();
+    return { ok: true, place: place.name };
+  };
+
   const flyNow = async (place) => {
     const text = `!ir ${String(place ?? '').trim()}`;
     const entry = { user: '', text, source: 'panel-fly' };
@@ -478,6 +519,12 @@ export function installLiveMode({
     toggleFlights,
     toggleCockpit,
     cycleCardPosition,
+    flyToLandmark,
+    toggleLandmarks: () => {
+      landmarks.setVisible(!landmarks.visible);
+      relay?.publish();
+      return { ok: true, landmarks: landmarks.visible };
+    },
     voicePress: () => voice.press(),
     voiceHold: () => voice.hold(),
     voiceRelease: () => voice.release(),
@@ -507,6 +554,7 @@ export function installLiveMode({
       cockpit: cockpitOn,
       cardPosition,
       voice: voice.state(),
+      landmarks: { visible: landmarks.visible, list: landmarks.list },
       aircraft: selectedFlight(),
       freeFlight: freeFlight
         ? { place: freeFlight.place, country: freeFlight.country }
@@ -524,6 +572,7 @@ export function installLiveMode({
     clearInterval(tick);
     clearInterval(blockedWordsTimer);
     voice.destroy();
+    landmarks.clear();
     window.removeEventListener(
       'gev:awareness-subject-selected',
       onAircraftSelected,

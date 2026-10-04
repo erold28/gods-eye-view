@@ -48,6 +48,13 @@
         <button type="button" data-command="cycleCardPosition" id="card-button">
           🪧 Tarjeta: arriba <kbd>T</kbd>
         </button>
+        <button
+          type="button"
+          data-command="toggleLandmarks"
+          id="landmarks-button"
+        >
+          🏷 Etiquetas: SÍ <kbd>L</kbd>
+        </button>
       </section>
       <section class="panel__voice" id="voice-section" aria-live="polite">
         <div class="panel__listening" id="voice-listening" hidden>
@@ -61,6 +68,13 @@
         </div>
         <div class="panel__voice-status" id="voice-status">Voz: apagada</div>
         <div class="panel__voice-cost" id="voice-cost"></div>
+      </section>
+      <section class="panel__section">
+        <h2>Lugares cercanos</h2>
+        <ol class="panel__landmarks" id="landmarks"></ol>
+        <p class="panel__empty" id="landmarks-empty">
+          Aparecen al llegar a una ciudad.
+        </p>
       </section>
 
       <form class="panel__add" id="add-form" autocomplete="off">
@@ -104,8 +118,9 @@
         Atajos fuera de los campos: <kbd>N</kbd> Siguiente · <kbd>S</kbd> Saltar
         · <kbd>P</kbd> Pausa/Continuar · <kbd>E</kbd> Extender ·
         <kbd>A</kbd> Aviones · <kbd>C</kbd> Chat TikTok · <kbd>K</kbd> Cabina ·
-        <kbd>T</kbd> Tarjeta · mantén <kbd>Espacio</kbd> para hablar con la IA ·
-        <kbd>Esc</kbd> salir del campo
+        <kbd>T</kbd> Tarjeta · <kbd>L</kbd> Etiquetas · mantén
+        <kbd>Espacio</kbd> para hablar con la IA · <kbd>Esc</kbd> salir del
+        campo
       </footer>
     </main>
     <script type="module" src="/src/live/control/panel.js"></script>

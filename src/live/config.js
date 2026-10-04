@@ -88,6 +88,13 @@ export const LIVE_CONFIG = Object.freeze({
       overviewPitch: -35,
       closePitch: -20,
     }),
+    /** Un lugar famoso elegido en la lista del panel (botón Ir). */
+    landmark: Object.freeze({
+      overviewHeight: 1_200,
+      closeHeight: 450,
+      overviewPitch: -35,
+      closePitch: -25,
+    }),
     other: Object.freeze({
       overviewHeight: 3_000,
       closeHeight: 600,

@@ -32,6 +32,8 @@ const KINDS = Object.freeze([
     ],
   ],
   ['neighborhood', ['neighborhood', 'colloquial_area']],
+  // A famous place picked from the panel's list (landmarks.js).
+  ['landmark', ['landmark']],
   [
     'area',
     [

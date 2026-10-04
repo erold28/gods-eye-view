@@ -25,6 +25,8 @@ export function runLiveCommand(api, command) {
       );
     case 'flyNow':
       return api.flyNow(command.place);
+    case 'flyToLandmark':
+      return api.flyToLandmark(command.landmark);
     case 'submit':
       return api.submit(
         { user: command.user, text: command.text },
@@ -43,6 +45,7 @@ export function runLiveCommand(api, command) {
     case 'voiceHold':
     case 'voiceRelease':
     case 'voiceStop':
+    case 'toggleLandmarks':
     case 'pause':
     case 'resume':
     case 'togglePause':

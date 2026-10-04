@@ -41,6 +41,8 @@ const COMMANDS = Object.freeze({
   voiceHold: [],
   voiceRelease: [],
   voiceStop: [],
+  flyToLandmark: ['landmark'],
+  toggleLandmarks: [],
   pause: [],
   resume: [],
   togglePause: [],

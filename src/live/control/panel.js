@@ -39,6 +39,9 @@ const ui = {
   chatButton: $('chat-button'),
   cockpitButton: $('cockpit-button'),
   cardButton: $('card-button'),
+  landmarksButton: $('landmarks-button'),
+  landmarks: $('landmarks'),
+  landmarksEmpty: $('landmarks-empty'),
   voiceTalk: $('voice-talk'),
   voiceStop: $('voice-stop'),
   voiceStatus: $('voice-status'),
@@ -200,6 +203,27 @@ function renderVoice() {
   if (!voice.available && talking) stopTalking();
 }
 
+/** The city's famous places, each with "Ir" (fly there; P comes back). */
+function renderLandmarks() {
+  const info = mapConnected ? state?.landmarks : null;
+  const list = info?.list || [];
+  ui.landmarksEmpty.hidden = list.length > 0;
+  ui.landmarksButton.firstChild.textContent =
+    info?.visible === false ? '🏷 Etiquetas: NO ' : '🏷 Etiquetas: SÍ ';
+  ui.landmarks.replaceChildren(
+    ...list.map((place) => {
+      const row = el('li');
+      const go = el('button', '', '➜ Ir');
+      go.title = `Volar a ${place.name} (la fila queda en pausa: P para volver)`;
+      go.disabled = !mapConnected;
+      go.addEventListener('click', () =>
+        send({ type: 'flyToLandmark', landmark: place.id }),
+      );
+      row.append(el('span', 'panel__place', place.name), go);
+      return row;
+    }),
+  );
+}
 // Agregar y volar ------------------------------------------------------------
 
 function readForm() {
@@ -403,6 +427,7 @@ function render() {
   renderLine(mapConnected ? state?.upcoming || [] : []);
   renderRejected(state?.rejected || []);
   renderVoice();
+  renderLandmarks();
 }
 
 // Conexión -------------------------------------------------------------------
