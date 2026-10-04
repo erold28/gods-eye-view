@@ -89,25 +89,64 @@ export function liveFramingKind(place, camera = LIVE_CONFIG.camera) {
   return 'town';
 }
 
+/** Camera distance (m) that puts the eye `heightM` above the centre at `pitchDeg`. */
+const rangeFor = (heightM, pitchDeg) =>
+  Math.round(heightM / Math.sin((Math.abs(pitchDeg) * Math.PI) / 180));
+
+/** A view: distance to the centre, tilt and the eye's height above it. */
+const view = (rangeM, pitchDeg) => ({
+  rangeM: Math.round(rangeM),
+  pitchDeg,
+  heightM: Math.round(rangeM * Math.sin((Math.abs(pitchDeg) * Math.PI) / 180)),
+});
+
 /**
- * `{ kind, rangeM, pitchDeg }` for an accepted place. Rows with a fixed
- * `meters` always use it; rows with `minMeters`/`maxMeters` follow the
- * place's own box within those limits (the lower limit without a box).
+ * The mini tour for an accepted place: `{ kind, overview, close }`, each view
+ * `{ rangeM, pitchDeg, heightM }`. Settlements have both views (a general view,
+ * then a slow descent to `close`); countries, regions, districts and large
+ * areas stay high, with `close: null`, following the place's own box within
+ * `minMeters`/`maxMeters` (the lower limit without a box).
  */
 export function liveFramingPlan(place, camera = LIVE_CONFIG.camera) {
   const kind = liveFramingKind(place, camera);
   const row = camera[kind];
-  let rangeM = row.meters;
-  if (!Number.isFinite(rangeM)) {
-    const diagonal = boxDiagonalM(place);
-    rangeM =
-      diagonal === null
-        ? row.minMeters
-        : clamp(diagonal * 1.3, row.minMeters, row.maxMeters);
-  }
-  return { kind, rangeM: Math.round(rangeM), pitchDeg: row.pitch };
+  if (Number.isFinite(row.overviewHeight))
+    return {
+      kind,
+      overview: view(
+        rangeFor(row.overviewHeight, row.overviewPitch),
+        row.overviewPitch,
+      ),
+      close: view(rangeFor(row.closeHeight, row.closePitch), row.closePitch),
+    };
+  const diagonal = boxDiagonalM(place);
+  const rangeM =
+    diagonal === null
+      ? row.minMeters
+      : clamp(diagonal * 1.3, row.minMeters, row.maxMeters);
+  return { kind, overview: view(rangeM, row.pitch), close: null };
 }
 
+/** 0→1 with a gentle start and end. */
+export const smoothstep = (t) => {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * (3 - 2 * x);
+};
+
+/**
+ * The view part-way down from `overview` to `close` (0 ≤ t ≤ 1, eased).
+ * Distance changes geometrically, so the descent feels even at every height.
+ */
+export function descentView(plan, t) {
+  if (!plan.close) return { ...plan.overview };
+  const s = smoothstep(t);
+  const from = plan.overview;
+  const to = plan.close;
+  const rangeM = Math.exp(
+    Math.log(from.rangeM) + (Math.log(to.rangeM) - Math.log(from.rangeM)) * s,
+  );
+  return view(rangeM, from.pitchDeg + (to.pitchDeg - from.pitchDeg) * s);
+}
 /**
  * How far to tilt the view up, in radians, so the point the camera looks at
  * sits at `screenY` (0 top, 1 bottom) instead of the centre. `fovy` is the

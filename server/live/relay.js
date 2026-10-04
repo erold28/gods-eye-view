@@ -30,6 +30,7 @@ const COMMANDS = Object.freeze({
   next: [],
   skip: [],
   extend: [],
+  toggleFlights: [],
   pause: [],
   resume: [],
   togglePause: [],

@@ -91,7 +91,13 @@ export function installLiveMode({
   };
   const queue = createLiveRequestQueue({ config, resolvePlace });
   const overlay = createLiveOverlay({ document, config });
-  const camera = createLiveCamera({ viewer, ground, config });
+  // Moving the map by hand pauses the line; Continuar (P) resumes the tour.
+  const camera = createLiveCamera({
+    viewer,
+    ground,
+    config,
+    onTakeover: () => queue.pause(),
+  });
   let idleTimer = null;
   /** Connected once the API exists, below; queue events publish through it. */
   let relay = null;
@@ -123,7 +129,7 @@ export function installLiveMode({
   const fly = (request) => {
     stopOrbit();
     try {
-      camera.flyTo(request);
+      camera.tour(request);
     } catch (error) {
       console.warn('[Live] Flight failed:', error);
     }
@@ -140,6 +146,7 @@ export function installLiveMode({
     else if (event.type === 'paused') stopOrbit();
     else if (leftFreeFlight && event.type === 'resumed' && state.current)
       fly(state.current);
+    else if (event.type === 'resumed' && camera.userControl) camera.resume();
     else if (
       !state.current &&
       !state.paused &&
@@ -251,8 +258,20 @@ export function installLiveMode({
     return { ok: true, place: { ...freeFlight } };
   };
 
+  // Live aircraft, off by default (heavy on a laptop over a big city). The
+  // app's own layer action shows and hides them.
+  let flightsOn = false;
+  const toggleFlights = async () => {
+    const enabled = !flightsOn;
+    await run('set_layer_visibility', { layerId: 'flights', enabled });
+    flightsOn = enabled;
+    relay?.publish();
+    return { ok: true, flights: flightsOn };
+  };
+
   const api = {
     submit,
+    toggleFlights,
     flyNow,
     next: () => queue.next(),
     skip: () => queue.skip(),
@@ -274,6 +293,7 @@ export function installLiveMode({
       at: Date.now(),
       displayMs: config.displaySeconds * 1000,
       ...queue.getState(),
+      flights: flightsOn,
       freeFlight: freeFlight
         ? { place: freeFlight.place, country: freeFlight.country }
         : null,

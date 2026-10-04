@@ -84,6 +84,7 @@ const SHORTCUTS = Object.freeze({
   s: 'skip',
   p: 'togglePause',
   e: 'extend',
+  a: 'toggleFlights',
 });
 
 /**

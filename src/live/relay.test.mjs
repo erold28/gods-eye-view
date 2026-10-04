@@ -32,6 +32,9 @@ test('relay commands keep only known types and fields', () => {
     id: 3,
   });
   assert.equal(sanitizeLiveCommand({ type: 'remove', id: '3' }), null);
+  assert.deepEqual(sanitizeLiveCommand({ type: 'toggleFlights', x: 1 }), {
+    type: 'toggleFlights',
+  });
   assert.equal(sanitizeLiveCommand({ type: 'eval' }), null);
   assert.equal(sanitizeLiveCommand({ type: 'constructor' }), null);
   assert.equal(sanitizeLiveCommand(null), null);

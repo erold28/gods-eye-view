@@ -4,8 +4,8 @@
  * Edita los números de abajo y recarga la app para aplicarlos.
  */
 export const LIVE_CONFIG = Object.freeze({
-  /** Segundos que se muestra cada ciudad antes de pasar a la siguiente. */
-  displaySeconds: 25,
+  /** Segundos que se muestra cada ciudad (incluye el vuelo) antes de la siguiente. */
+  displaySeconds: 50,
   /** Segundos que suma el botón "Extender" (tecla E) a la ciudad en pantalla. */
   extendSeconds: 15,
   /** Segundos que un mismo usuario debe esperar entre dos pedidos aceptados. */
@@ -26,25 +26,77 @@ export const LIVE_CONFIG = Object.freeze({
    */
   blockedWords: Object.freeze([]),
 
-  /** Cámara al volar a cada pedido. */
+  /**
+   * Cámara: el mini recorrido de cada ciudad.
+   *   1. Vuelo suave            (flightSeconds)
+   *   2. Vista general          (overviewSeconds, a "overviewHeight")
+   *   3. Bajada lenta           (descentSeconds, hasta "closeHeight")
+   *   4. Giro muy lento         (el resto del tiempo, orbitDegreesPerSecond)
+   * Si el 3D todavía carga al final de la vista general, la bajada espera
+   * hasta "waitForTilesSeconds". Los países y regiones no bajan.
+   */
   camera: Object.freeze({
-    /** Segundos que dura el vuelo. */
-    flightSeconds: 4,
+    flightSeconds: 10,
+    overviewSeconds: 10,
+    descentSeconds: 8,
+    waitForTilesSeconds: 5,
+    /** Giro casi imperceptible durante la vista general. */
+    overviewDriftDegreesPerSecond: 0.5,
+    /** Giro alrededor del centro en la fase cercana. */
+    orbitDegreesPerSecond: 2,
+    /** Giro de países y regiones, vistos desde lejos. */
+    highOrbitDegreesPerSecond: 1,
+    /** Segundos para volver al recorrido con P después de mover el mapa. */
+    resumeSeconds: 3,
     /**
      * Dónde queda el centro del lugar en la pantalla, de 0 (arriba) a 1
      * (abajo). 0.5 es el centro; 0.70 lo deja debajo del cartel y la fila.
      */
     placeScreenY: 0.7,
-    /** Grados por segundo del giro lento en modo espera. */
+    /** Grados por segundo del giro de espera al arrancar, sin ciudad aún. */
     idleOrbitDegreesPerSecond: 2,
     /**
-     * Distancia de la cámara al centro (metros) e inclinación (grados,
-     * negativa = mirando hacia abajo) por tipo de lugar. "minMeters" y
-     * "maxMeters" acotan la distancia cuando se calcula por el tamaño.
-     * Una ciudad se clasifica por el tamaño de su zona (en km): "bigCity"
-     * desde "fromKm", "town" por debajo de "city.fromKm", y lo demás "city".
-     * Un estado o región más pequeño que "bigCityBelowKm" (Ciudad de México)
-     * se encuadra como ciudad grande.
+     * Alturas sobre el suelo (metros) e inclinación (grados, negativa =
+     * mirando hacia abajo). Una ciudad se clasifica por el tamaño de su zona
+     * (en km): "bigCity" desde "fromKm", "town" por debajo de "city.fromKm",
+     * y lo demás "city". Un estado o región más pequeño que "bigCityBelowKm"
+     * (Ciudad de México) es una ciudad grande.
+     */
+    bigCity: Object.freeze({
+      overviewHeight: 4_500,
+      closeHeight: 500,
+      overviewPitch: -35,
+      closePitch: -20,
+      fromKm: 60,
+    }),
+    city: Object.freeze({
+      overviewHeight: 3_000,
+      closeHeight: 350,
+      overviewPitch: -35,
+      closePitch: -20,
+      fromKm: 6,
+    }),
+    town: Object.freeze({
+      overviewHeight: 2_000,
+      closeHeight: 250,
+      overviewPitch: -35,
+      closePitch: -20,
+    }),
+    neighborhood: Object.freeze({
+      overviewHeight: 1_500,
+      closeHeight: 200,
+      overviewPitch: -35,
+      closePitch: -20,
+    }),
+    other: Object.freeze({
+      overviewHeight: 3_000,
+      closeHeight: 350,
+      overviewPitch: -35,
+      closePitch: -20,
+    }),
+    /**
+     * Lugares que se quedan altos: la distancia de la cámara al centro
+     * (metros) sigue el tamaño del lugar entre "minMeters" y "maxMeters".
      */
     country: Object.freeze({
       minMeters: 800_000,
@@ -63,11 +115,6 @@ export const LIVE_CONFIG = Object.freeze({
       pitch: -45,
       bigCityBelowKm: 150,
     }),
-    bigCity: Object.freeze({ meters: 14_000, pitch: -28, fromKm: 60 }),
-    city: Object.freeze({ meters: 8_000, pitch: -28, fromKm: 6 }),
-    town: Object.freeze({ meters: 4_000, pitch: -30 }),
-    neighborhood: Object.freeze({ meters: 2_500, pitch: -30 }),
     area: Object.freeze({ minMeters: 5_000, maxMeters: 150_000, pitch: -35 }),
-    other: Object.freeze({ meters: 6_000, pitch: -30 }),
   }),
 });

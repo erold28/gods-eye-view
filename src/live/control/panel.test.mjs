@@ -74,6 +74,7 @@ test('panel: N S P E act only outside text fields and without modifiers', () => 
   assert.equal(shortcutFor(key('s')), 'skip');
   assert.equal(shortcutFor(key('p')), 'togglePause');
   assert.equal(shortcutFor(key('e')), 'extend');
+  assert.equal(shortcutFor(key('a')), 'toggleFlights');
   assert.equal(shortcutFor(key('n', { target: { tagName: 'INPUT' } })), null);
   assert.equal(
     shortcutFor(key('n', { target: { isContentEditable: true } })),

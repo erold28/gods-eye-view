@@ -32,6 +32,7 @@ const ui = {
   nowDetail: $('now-detail'),
   pauseButton: $('pause-button'),
   extendButton: $('extend-button'),
+  flightsButton: $('flights-button'),
   form: $('add-form'),
   user: $('user-input'),
   place: $('place-input'),
@@ -258,6 +259,9 @@ function renderNow() {
       ? 'Esperando pedidos (modo espera).'
       : '';
   }
+  ui.flightsButton.firstChild.textContent = state?.flights
+    ? '✈ Aviones: SÍ '
+    : '✈ Aviones: NO ';
   ui.extendButton.disabled =
     !mapConnected || !current || Boolean(state?.freeFlight);
 }
