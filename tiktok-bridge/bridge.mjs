@@ -67,7 +67,14 @@ async function forward(request) {
       log(
         `${request.user}: "${request.text}" — la app respondió ${response.status}`,
       );
-    else log(`${request.user}: "${request.text}" → enviado a la fila`);
+    else {
+      const body = await response.json().catch(() => ({}));
+      log(
+        body?.ignored === 'chat-paused'
+          ? `${request.user}: "${request.text}" — chat en pausa (ignorado)`
+          : `${request.user}: "${request.text}" → enviado a la fila`,
+      );
+    }
   } catch {
     log(
       `${request.user}: "${request.text}" — no hay conexión con la app (¿está abierto el servidor?)`,

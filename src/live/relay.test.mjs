@@ -119,12 +119,14 @@ test('relay passes panel commands and chat comments to the map', async (t) => {
     mapConnected: false,
     maps: 0,
     tiktok: null,
+    chatPaused: false,
   });
   const map = await listen('map');
   assert.deepEqual(await panel.next('status'), {
     mapConnected: true,
     maps: 1,
     tiktok: null,
+    chatPaused: false,
   });
 
   assert.equal(
@@ -162,6 +164,44 @@ test('relay passes panel commands and chat comments to the map', async (t) => {
     mapConnected: false,
     maps: 0,
     tiktok: null,
+    chatPaused: false,
+  });
+});
+
+test('Pausar chat de TikTok drops chat requests but keeps the panel working', async (t) => {
+  const { post, listen } = await serveRelay(t);
+  const panel = await listen('panel');
+  await panel.next('status');
+  const map = await listen('map');
+  await panel.next('status');
+
+  const paused = await post('/command', { type: 'toggleChat' });
+  assert.deepEqual(await paused.json(), { ok: true, chatPaused: true });
+  assert.equal((await panel.next('status')).chatPaused, true);
+  assert.equal(
+    map.events.some((e) => e.event === 'command'),
+    false,
+  );
+
+  // The bridge is answered (so it keeps running) but nothing reaches the map.
+  const comment = await post('/comment', { user: '@juan', text: '!ir París' });
+  assert.deepEqual(await comment.json(), { ok: true, ignored: 'chat-paused' });
+  // The streamer's own requests still go through.
+  await post('/command', { type: 'add', user: '@ana', place: 'Lima' });
+  assert.deepEqual(await map.next('command'), {
+    type: 'add',
+    user: '@ana',
+    place: 'Lima',
+  });
+  assert.equal(map.events.filter((e) => e.event === 'command').length, 0);
+
+  await post('/command', { type: 'toggleChat' });
+  assert.equal((await panel.next('status')).chatPaused, false);
+  await post('/comment', { user: '@juan', text: '!ir París' });
+  assert.deepEqual(await map.next('command'), {
+    type: 'submit',
+    user: '@juan',
+    text: '!ir París',
   });
 });
 

@@ -35,6 +35,7 @@ const ui = {
   pauseButton: $('pause-button'),
   extendButton: $('extend-button'),
   flightsButton: $('flights-button'),
+  chatButton: $('chat-button'),
   form: $('add-form'),
   user: $('user-input'),
   place: $('place-input'),
@@ -291,7 +292,12 @@ events.addEventListener('status', (event) => {
   mapConnected = Boolean(status.mapConnected);
   mapWindows = Number(status.maps) || 0;
   const tiktok = tiktokStatus(status.tiktok);
-  ui.tiktok.textContent = tiktok.text;
+  ui.tiktok.textContent = status.chatPaused
+    ? `${tiktok.text} — ⏸ chat en pausa`
+    : tiktok.text;
+  ui.chatButton.firstChild.textContent = status.chatPaused
+    ? '💬 Chat TikTok: EN PAUSA '
+    : '💬 Chat TikTok: SÍ ';
   ui.tiktok.dataset.online = String(tiktok.online);
   if (!mapConnected)
     state = state

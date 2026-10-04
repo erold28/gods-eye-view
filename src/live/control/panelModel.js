@@ -101,6 +101,7 @@ const SHORTCUTS = Object.freeze({
   p: 'togglePause',
   e: 'extend',
   a: 'toggleFlights',
+  c: 'toggleChat',
 });
 
 /**

@@ -8,7 +8,8 @@
  *   The map receives `command` events; a panel receives `state` and
  *   `status` events (whether a map and the TikTok bridge are connected).
  * - POST /api/live/command  `{ type, ... }` from the control panel.
- * - POST /api/live/comment  `{ user, text }` from a chat bridge.
+ * - POST /api/live/comment  `{ user, text }` from a chat bridge; dropped while
+ *   the panel has paused the chat (`toggleChat`, handled here, not by the map).
  * - POST /api/live/state    the map's current state, passed on to panels.
  * - POST /api/live/bridge   `{ connected, username }`, the bridge's heartbeat.
  *
@@ -41,6 +42,8 @@ const COMMANDS = Object.freeze({
   promote: ['id'],
   clearLine: [],
   clear: [],
+  // Handled by the relay itself: stops chat requests, keeps the panel's.
+  toggleChat: [],
 });
 
 const text = (value) =>
@@ -87,6 +90,8 @@ export function createLiveRelay({
   let lastState = null;
   /** The TikTok bridge's last report: `{ connected, username, at }`. */
   let bridge = null;
+  /** "Pausar chat de TikTok": chat requests are dropped, the panel's are not. */
+  let chatPaused = false;
 
   const send = (res, event, data) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -103,6 +108,7 @@ export function createLiveRelay({
     mapConnected: maps.length > 0,
     maps: maps.length,
     tiktok: tiktok(),
+    chatPaused,
   });
   let lastStatus = '';
   const broadcastStatus = () => {
@@ -190,15 +196,22 @@ export function createLiveRelay({
     }
     if (route === '/command') {
       const command = sanitizeLiveCommand(body);
+      if (command?.type === 'toggleChat') {
+        chatPaused = !chatPaused;
+        broadcastStatus();
+        return json(res, 200, { ok: true, chatPaused });
+      }
       return command
         ? forward(res, command)
         : json(res, 400, { error: 'bad-command' });
     }
     if (route === '/comment') {
       const command = sanitizeLiveComment(body);
-      return command
-        ? forward(res, command)
-        : json(res, 400, { error: 'bad-comment' });
+      if (!command) return json(res, 400, { error: 'bad-comment' });
+      // Paused chat: accepted, so the bridge keeps going, but not passed on.
+      if (chatPaused)
+        return json(res, 200, { ok: true, ignored: 'chat-paused' });
+      return forward(res, command);
     }
     if (route === '/state') {
       lastState = body && typeof body === 'object' ? body : null;
