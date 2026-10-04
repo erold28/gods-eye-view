@@ -118,9 +118,14 @@ test('relay passes panel commands and chat comments to the map', async (t) => {
   assert.deepEqual(await panel.next('status'), {
     mapConnected: false,
     maps: 0,
+    tiktok: null,
   });
   const map = await listen('map');
-  assert.deepEqual(await panel.next('status'), { mapConnected: true, maps: 1 });
+  assert.deepEqual(await panel.next('status'), {
+    mapConnected: true,
+    maps: 1,
+    tiktok: null,
+  });
 
   assert.equal(
     (await post('/command', { type: 'add', user: '', place: 'Lima' })).status,
@@ -156,6 +161,7 @@ test('relay passes panel commands and chat comments to the map', async (t) => {
   assert.deepEqual(await panel.next('status'), {
     mapConnected: false,
     maps: 0,
+    tiktok: null,
   });
 });
 

@@ -8,6 +8,7 @@ import {
   remainingNow,
   shortcutFor,
   sourceText,
+  tiktokStatus,
 } from './panelModel.js';
 
 /**
@@ -26,6 +27,7 @@ const el = (tag, className, text) => {
 
 const ui = {
   connection: $('connection'),
+  tiktok: $('tiktok-status'),
   paused: $('paused-badge'),
   nowLabel: $('now-label'),
   nowPlace: $('now-place'),
@@ -288,6 +290,9 @@ events.addEventListener('status', (event) => {
   const status = JSON.parse(event.data);
   mapConnected = Boolean(status.mapConnected);
   mapWindows = Number(status.maps) || 0;
+  const tiktok = tiktokStatus(status.tiktok);
+  ui.tiktok.textContent = tiktok.text;
+  ui.tiktok.dataset.online = String(tiktok.online);
   if (!mapConnected)
     state = state
       ? { ...state, current: null, upcoming: [], freeFlight: null }

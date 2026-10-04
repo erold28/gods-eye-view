@@ -6,10 +6,11 @@
  *
  * - GET  /api/live/events?role=map|panel  Server-Sent Events stream.
  *   The map receives `command` events; a panel receives `state` and
- *   `status` events (whether a map is connected).
+ *   `status` events (whether a map and the TikTok bridge are connected).
  * - POST /api/live/command  `{ type, ... }` from the control panel.
  * - POST /api/live/comment  `{ user, text }` from a chat bridge.
  * - POST /api/live/state    the map's current state, passed on to panels.
+ * - POST /api/live/bridge   `{ connected, username }`, the bridge's heartbeat.
  *
  * Commands go to the most recently connected map only, so a reloaded or
  * duplicated map window never runs a request twice. Every route accepts
@@ -21,6 +22,8 @@ import { isLocalMcpRequest } from '../mcp/plugin.js';
 const MAX_BODY_BYTES = 64 * 1024;
 const BODY_TIMEOUT_MS = 10 * 1000;
 const KEEPALIVE_MS = 15 * 1000;
+/** The bridge reports every 20 s; three missed reports means it is gone. */
+const BRIDGE_STALE_MS = 60 * 1000;
 const MAX_TEXT = 200;
 
 /** Commands a panel may send, and the fields each one carries. */
@@ -76,24 +79,41 @@ export function createLiveRelay({
   keepaliveMs = KEEPALIVE_MS,
   bodyTimeoutMs = BODY_TIMEOUT_MS,
   env = process.env,
+  now = Date.now,
+  bridgeStaleMs = BRIDGE_STALE_MS,
 } = {}) {
   const maps = [];
   const panels = new Set();
   let lastState = null;
+  /** The TikTok bridge's last report: `{ connected, username, at }`. */
+  let bridge = null;
 
   const send = (res, event, data) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
   const currentMap = () => maps.at(-1) || null;
+  // A bridge that stopped reporting (its window was closed) counts as gone.
+  const tiktok = () =>
+    bridge && now() - bridge.at < bridgeStaleMs
+      ? { connected: bridge.connected, username: bridge.username }
+      : null;
   // `maps` lets the panel warn when more than one map window is open: only
   // the newest one receives commands.
   const status = () => ({
     mapConnected: maps.length > 0,
     maps: maps.length,
+    tiktok: tiktok(),
   });
+  let lastStatus = '';
   const broadcastStatus = () => {
+    lastStatus = JSON.stringify(status());
     for (const panel of panels) send(panel, 'status', status());
   };
+  // Notice a bridge going quiet even though nothing else changed.
+  const staleCheck = setInterval(() => {
+    if (JSON.stringify(status()) !== lastStatus) broadcastStatus();
+  }, bridgeStaleMs / 3);
+  staleCheck.unref?.();
 
   const json = (res, code, body) => {
     res.writeHead(code, {
@@ -185,6 +205,15 @@ export function createLiveRelay({
       for (const panel of panels) send(panel, 'state', lastState);
       return json(res, 200, { ok: true });
     }
+    if (route === '/bridge') {
+      bridge = {
+        connected: body?.connected === true,
+        username: text(body?.username).replace(/^@+/, ''),
+        at: now(),
+      };
+      broadcastStatus();
+      return json(res, 200, { ok: true });
+    }
     if (typeof next === 'function') return next();
     return json(res, 404, { error: 'not-found' });
   }
@@ -193,6 +222,7 @@ export function createLiveRelay({
     handle,
     status,
     close() {
+      clearInterval(staleCheck);
       for (const res of [...maps, ...panels]) res.end();
       maps.length = 0;
       panels.clear();

@@ -51,6 +51,19 @@ export function normalizeUser(value) {
   return name ? `@${name}` : '';
 }
 
+/** The TikTok bridge line: `{ text, online }` from the relay's `tiktok`. */
+export function tiktokStatus(tiktok) {
+  if (!tiktok)
+    return {
+      text: 'TikTok: puente apagado (solo panel manual)',
+      online: false,
+    };
+  const who = tiktok.username ? `@${tiktok.username}` : 'tu cuenta';
+  return tiktok.connected
+    ? { text: `TikTok: conectado al live de ${who}`, online: true }
+    : { text: `TikTok: esperando que ${who} esté en vivo…`, online: false };
+}
+
 /** "0:14" for a number of milliseconds. */
 export function formatClock(ms) {
   const total = Math.max(0, Math.ceil((Number(ms) || 0) / 1000));

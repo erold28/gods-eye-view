@@ -55,6 +55,16 @@ body {
   content: '🔴 ';
 }
 
+.panel__tiktok {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.panel__tiktok[data-online='true'] {
+  color: var(--ok);
+  font-weight: 700;
+}
+
 .panel__paused {
   padding: 4px 10px;
   border-radius: 6px;

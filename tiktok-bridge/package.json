@@ -1,0 +1,17 @@
+{
+  "name": "mr-erold-tiktok-bridge",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Puente que lee el chat de TikTok LIVE y envía los pedidos !ir/!ale a Mr Erold Live.",
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node bridge.mjs"
+  },
+  "dependencies": {
+    "tiktok-live-connector": "^2.5.0"
+  }
+}
